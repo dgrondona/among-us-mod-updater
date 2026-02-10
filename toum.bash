@@ -69,7 +69,7 @@ if [ -d "$MOD_DIR" ] && [ -f "$VERSION_FILE" ]; then
         BACKUP_DIR="$BACKUP_BASE"
         COUNTER=1
 
-        while [ -d "$BACKUP_DIR" ]; do
+        while [ -e "$BACKUP_DIR" ]; do
 
             BACKUP_DIR="${BACKUP_BASE}_$COUNTER"
             COUNTER=$((COUNTER + 1))
@@ -95,7 +95,18 @@ elif [ -d "$MOD_DIR" ]; then
 
     if [[ "$SAVE_BACKUP" != "n" && "$SAVE_BACKUP" != "no" ]]; then
 
-        BACKUP_DIR="$DOWNLOAD_DIR/toum($INSTALLED_VERSION)"
+         # Backup directory with incrementing number if needed
+        BACKUP_BASE="$DOWNLOAD_DIR/toum($INSTALLED_VERSION)"
+        BACKUP_DIR="$BACKUP_BASE"
+        COUNTER=1
+
+        while [ -e "$BACKUP_DIR" ]; do
+
+            BACKUP_DIR="${BACKUP_BASE}_$COUNTER"
+            COUNTER=$((COUNTER + 1))
+
+        done
+
         echo "Backing up existing mod to $BACKUP_DIR..."
         mv "$MOD_DIR" "$BACKUP_DIR"
 
@@ -129,15 +140,17 @@ fi
 
 echo "Done!"
 
+EXTRACTED_DIR="$DOWNLOAD_DIR/tmp_extract"
+
+mkdir -p "$EXTRACTED_DIR"
+
 # Extract mod from ZIP archive
-if ! unzip "$DOWNLOAD_DIR/$FILENAME"; then
+if ! unzip -o "$DOWNLOAD_DIR/$FILENAME" -d "$EXTRACTED_DIR"; then
 
     echo "Error: Failed to unzip mod."
     exit 1
 
 fi
-
-EXTRACTED_DIR="$DOWNLOAD_DIR/${FILENAME%.zip}"
 
 if [ ! -d "$EXTRACTED_DIR" ]; then
 
@@ -147,12 +160,11 @@ if [ ! -d "$EXTRACTED_DIR" ]; then
 fi
 
 # Move everything to the mod directory
-if ! rsync -a --remove-source-files --remove-source-empty-dirs "$EXTRACTED_DIR"/ "$MOD_DIR"/; then
+for ITEM in "$EXTRACTED_DIR"/*; do
 
-    echo "Error: Failed to move mod files into toum."
-    exit 1
+    rsync -a --remove-source-files "$ITEM"/ "$MOD_DIR"/
 
-fi
+done
 
 # Delete extracted directory and ZIP
 rm -rf "$EXTRACTED_DIR"
@@ -160,5 +172,8 @@ rm -f "$DOWNLOAD_DIR/$FILENAME"
 
 # Update version file
 echo "$LATEST_VERSION" > "$VERSION_FILE"
+
+# Make sure all files are readable and writeable
+chmod -R u+rw "$MOD_DIR"
 
 echo "Mod updated to version $LATEST_VERSION at $MOD_DIR!"
