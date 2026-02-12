@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+shopt -s nullglob dotglob # Include hidden files in globs
 
 # Information for downloading from GitHub
 OWNER="AU-Avengers"
@@ -287,27 +288,71 @@ installModFiles() {
 
 updateCheck() {
 
+    if [[ $FORCE_UPDATE -eq 1 ]]; then
+        logInfo "Force update enabled, skipping version check."
+    fi
+
     # Check to see if mod needs updating and backup
     if [ -d "$MOD_DIR" ] && [ -f "$VERSION_FILE" ]; then
 
         INSTALLED_VERSION=$(cat "$VERSION_FILE")
 
-        if [ "$INSTALLED_VERSION" == "$LATEST_VERSION" ]; then
+        if [ "$INSTALLED_VERSION" == "$LATEST_VERSION" ] && [[ $FORCE_UPDATE -eq 0 ]]; then
 
             logInfo "Mod is already up to date ($INSTALLED_VERSION)."
             exit 0
 
         fi
 
-        backup "$INSTALLED_VERSION"
+        if [[ $SKIP_BACKUP -eq 0 ]]; then
+            backup "$INSTALLED_VERSION"
+        fi
 
-    elif [ -d "$MOD_DIR" ]; then
+    elif [ -d "$MOD_DIR" ] && [[ $SKIP_BACKUP -eq 0 ]]; then
 
         backup "unknown"
 
     fi
 
 }
+
+
+FORCE_UPDATE=0
+SKIP_BACKUP=0
+
+usage() {
+
+    cat <<EOF
+Usage: $0 [OPTIONS]
+
+Options:
+    -f, --force       Force update even if mod is up to date
+    -n, --no-backup   Skip backing up existing mod
+    -h, --help        Show this help message
+EOF
+    exit 0
+
+}
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -f|--force)
+            FORCE_UPDATE=1
+            shift
+            ;;
+        -n|--no-backup)
+            SKIP_BACKUP=1
+            shift
+            ;;
+        -h|--help)
+            usage
+            ;;
+        *)
+            logError "Unknown argument: $1"
+            usage
+            ;;
+    esac
+done
 
 
 main() {
