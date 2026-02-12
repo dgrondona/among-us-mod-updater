@@ -28,6 +28,11 @@ WARN="${YELLOW}[WARN]: ${NC}"
 ERROR="${RED}[ERROR]: ${NC}"
 DONE="${GREEN}[DONE]: ${NC}"
 
+logInfo() { echo -e "${INFO}$1"; }
+logWarn() { echo -e "${WARN}$1"; }
+logError() { echo -e "${ERROR}$1"; }
+logDone() { echo -e "${DONE}$1"; }
+
 # Progress bar
 progressBar() {
 
@@ -78,10 +83,10 @@ progressBar() {
     local STATUS=$?
 
     # Complete the bar at 100%
-    printf "\r[%s] 100%%\n" "$(printf '#%.0s' $(seq 1 $BAR_LENGTH))"
+    printf "${GREEN}\r[%s] 100%%\n" "$(printf '#%.0s' $(seq 1 $BAR_LENGTH))${NC}"
 
     if [ $STATUS -ne 0 ]; then
-        echo -e "${ERROR}Download failed!"
+        logError "Download failed!"
         exit 1
     fi
 
@@ -90,12 +95,12 @@ progressBar() {
 # Check if Among Us folder exists
 if [ ! -d "$GAME_DIR" ]; then
 
-    echo -e "${ERROR}Among Us folder not found at $GAME_DIR"
+    logError "Among Us folder not found at $GAME_DIR"
     exit 1
 
 fi
 
-echo -e "${WARN}Make sure your game has updated before running this!"
+logWarn "Make sure your game has updated before running this!"
 
 # Generate the asset URL
 ASSET_URL=$(curl -s \
@@ -106,7 +111,7 @@ ASSET_URL=$(curl -s \
 # Check if the asset exists
 if [ -z "$ASSET_URL" ]; then
 
-    echo -e "${ERROR}No matching asset found at $OWNER/$REPO/releases/latest!"
+    logError "No matching asset found at $OWNER/$REPO/releases/latest!"
     exit 1
 
 fi
@@ -115,7 +120,7 @@ fi
 FILENAME=$(basename "$ASSET_URL")
 LATEST_VERSION=$(echo "$FILENAME" | grep -oP 'v[0-9]+\.[0-9]+\.[0-9]+')
 
-echo -e "${INFO}Latest mod version: $LATEST_VERSION"
+logInfo "Latest mod version: $LATEST_VERSION"
 
 # Check to see if mod needs updating
 if [ -d "$MOD_DIR" ] && [ -f "$VERSION_FILE" ]; then
@@ -124,7 +129,7 @@ if [ -d "$MOD_DIR" ] && [ -f "$VERSION_FILE" ]; then
 
     if [ "$INSTALLED_VERSION" == "$LATEST_VERSION" ]; then
 
-        echo -e "${INFO}Mod is already up to date ($INSTALLED_VERSION)."
+        logInfo "Mod is already up to date ($INSTALLED_VERSION)."
         exit 0
 
     fi
@@ -148,12 +153,12 @@ if [ -d "$MOD_DIR" ] && [ -f "$VERSION_FILE" ]; then
 
         done
 
-        echo -e "${INFO}Backing up existing mod to $BACKUP_DIR..."
+        logInfo "Backing up existing mod to $BACKUP_DIR..."
         mv "$MOD_DIR" "$BACKUP_DIR"
 
     else
 
-        echo -e "${INFO}Deleting existing mod..."
+        logInfo "Deleting existing mod..."
         rm -rf "$MOD_DIR"
 
     fi
@@ -180,12 +185,12 @@ elif [ -d "$MOD_DIR" ]; then
 
         done
 
-        echo -e "${INFO}Backing up existing mod to $BACKUP_DIR..."
+        logInfo "Backing up existing mod to $BACKUP_DIR..."
         mv "$MOD_DIR" "$BACKUP_DIR"
 
     else
 
-        echo -e "${INFO}Deleting existing mod..."
+        logInfo "Deleting existing mod..."
         rm -rf "$MOD_DIR"
 
     fi
@@ -196,10 +201,10 @@ fi
 mkdir -p "$MOD_DIR"
 
 # Copy Among Us folder to toum
-echo -e "${INFO}Copying game folder for mod..."
+logInfo "Copying game folder for mod..."
 
 if ! cp -r "$GAME_DIR"/. "$MOD_DIR"/; then
-    echo -e "${ERROR}Failed to copy Among Us folder to toum."
+    logError "Failed to copy Among Us folder to toum."
     exit 1
 fi
 
@@ -207,9 +212,9 @@ fi
 : > "$DOWNLOAD_DIR/$FILENAME"
 
 # Download asset
-echo -e "${INFO}Downloading $FILENAME...\n"
+logInfo "Downloading $FILENAME...\n"
 progressBar "$ASSET_URL" "$DOWNLOAD_DIR/$FILENAME"
-echo -e "${INFO}Download complete!"
+logInfo "Download complete!"
 
 EXTRACTED_DIR="$DOWNLOAD_DIR/tmp_extract"
 
@@ -218,14 +223,14 @@ mkdir -p "$EXTRACTED_DIR"
 # Extract mod from ZIP archive
 if ! unzip -oq "$DOWNLOAD_DIR/$FILENAME" -d "$EXTRACTED_DIR"; then
 
-    echo -e "${ERROR}Failed to unzip mod."
+    logError "Failed to unzip mod."
     exit 1
 
 fi
 
 if [ ! -d "$EXTRACTED_DIR" ]; then
 
-    echo -e "${ERROR}Extracted directory not found!"
+    logError "Extracted directory not found!"
     exit 1
 
 fi
@@ -247,4 +252,4 @@ echo -e "$LATEST_VERSION" > "$VERSION_FILE"
 # Make sure all files are readable and writeable
 chmod -R u+rwX "$MOD_DIR"
 
-echo -e "${DONE}Mod updated to version $LATEST_VERSION at $MOD_DIR!"
+logDone "Mod updated to version $LATEST_VERSION at $MOD_DIR!"
