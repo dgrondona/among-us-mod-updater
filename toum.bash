@@ -110,7 +110,7 @@ cleanup() {
     fi
 
     # Remove partial download
-    if [ -f "$DOWNLOAD_DIR/$FILENAME" ]; then
+    if [ -n "${FILENAME:-}" ] && [ -f "$DOWNLOAD_DIR/$FILENAME" ]; then
 
         rm -f "$DOWNLOAD_DIR/$FILENAME" 2>/dev/null || true
 
@@ -122,7 +122,7 @@ trap cleanup EXIT
 
 
 # Grab the latest release from GitHub
-getLastestReleaseUrl() {
+getLatestReleaseUrl() {
 
     curl -s "https://api.github.com/repos/$OWNER/$REPO/releases/latest" |
         jq -r --arg MATCH "$MATCH" \
@@ -226,7 +226,7 @@ backup() {
         done
 
         logInfo "Backing up existing mod to $TARGET..."
-        mv "$MOD_DIR" "$TARGET"
+        rsync -a --remove-source-files "$MOD_DIR"/ "$TARGET"/
 
     else
 
@@ -240,9 +240,9 @@ backup() {
 
 copyGameFiles() {
 
-    logInfo "Copying game files to ${MOD_DIR}..."
+    logInfo "Copying game files to $MOD_DIR..."
 
-    cp -r "$GAME_DIR"/. "$MOD_DIR"/ || {
+    rsync -a "$GAME_DIR"/ "$MOD_DIR"/ || {
 
         logError "Failed to copy Among Us folder."
         exit 1
@@ -259,6 +259,7 @@ installModFiles() {
     mkdir -p "$TMP"
 
     # Unzip mod
+    logInfo "Extracting $FILENAME..."
     if ! unzip -oq "$DOWNLOAD_DIR/$FILENAME" -d "$TMP"; then
         logError "Failed to unzip mod."
         exit 1
@@ -272,6 +273,8 @@ installModFiles() {
     # Remove temp directory and ZIP file
     rm -rf "$TMP"
     rm -f "$DOWNLOAD_DIR/$FILENAME"
+
+    logInfo "$FILENAME extracted to $MOD_DIR"
 
     # Write mod version to txt inside mod directory
     echo "$LATEST_VERSION" > "$VERSION_FILE"
@@ -318,7 +321,7 @@ fi
 logWarn "Make sure your game has updated before running this!"
 
 # Generate the asset URL
-ASSET_URL=$(getLastestReleaseUrl)
+ASSET_URL=$(getLatestReleaseUrl)
 
 # Check if the asset exists
 if [ -z "$ASSET_URL" ]; then
@@ -331,6 +334,12 @@ fi
 # Get filename and latest version from the asset URL
 FILENAME=$(basename "$ASSET_URL")
 LATEST_VERSION=$(echo "$FILENAME" | grep -oP 'v[0-9]+\.[0-9]+\.[0-9]+')
+
+# Check if latest version exists
+if [[ -z "$LATEST_VERSION" ]]; then
+    logError "Could not determine latest mod version from filename!"
+    exit 1
+fi
 
 logInfo "Latest mod version: $LATEST_VERSION"
 
