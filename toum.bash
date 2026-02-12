@@ -23,7 +23,7 @@ YELLOW="\033[1;93m"
 NC="\033[0m" # No Color
 
 # Log levels
-INFO="[INFO]: "
+INFO="\033[1m[INFO]: \033[0m"
 WARN="${YELLOW}[WARN]: ${NC}"
 ERROR="${RED}[ERROR]: ${NC}"
 DONE="${GREEN}[DONE]: ${NC}"
@@ -148,7 +148,7 @@ fi
 echo -e "${INFO}Downloading $FILENAME to $DOWNLOAD_DIR...\n"
 
 if ! curl -L -o "$DOWNLOAD_DIR/$FILENAME" "$ASSET_URL"; then
-    echo "\n${ERROR}Failed to download mod."
+    echo "\n ${ERROR}Failed to download mod."
     exit 1
 fi
 
