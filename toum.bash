@@ -5,6 +5,8 @@ set -euo pipefail
 OWNER="AU-Avengers"
 REPO="TOU-Mira"
 
+MOD_NAME="toum"
+
 # Download must include this string
 MATCH="steam-itch"
 
@@ -12,8 +14,8 @@ MATCH="steam-itch"
 DOWNLOAD_DIR="$HOME/.steam/steam/steamapps/common"
 
 GAME_DIR="$DOWNLOAD_DIR/Among Us"
-MOD_DIR="$DOWNLOAD_DIR/toum"
-MOD_OLD_DIR="$DOWNLOAD_DIR/toum(old)"
+MOD_DIR="$DOWNLOAD_DIR/$MOD_NAME"
+MOD_OLD_DIR="$DOWNLOAD_DIR/$MOD_NAME(old)"
 VERSION_FILE="$MOD_DIR/version.txt"
 
 # Colors
@@ -28,10 +30,57 @@ WARN="${YELLOW}[WARN]: ${NC}"
 ERROR="${RED}[ERROR]: ${NC}"
 DONE="${GREEN}[DONE]: ${NC}"
 
-logInfo() { echo -e "${INFO}$1"; }
-logWarn() { echo -e "${WARN}$1"; }
-logError() { echo -e "${ERROR}$1"; }
-logDone() { echo -e "${DONE}$1"; }
+: '
+Log functions can have newline ommited with -n
+
+logInfo "Text Here"
+or
+logInfo -n "Text Here"
+'
+logInfo() {
+
+    if [[ "${1:-}" == "-n" ]]; then
+        shift
+        printf "%b" "${INFO}$*"
+    else
+        printf "%b\n" "${INFO}$1";
+    fi
+
+}
+
+logWarn() {
+
+    if [[ "${1:-}" == "-n" ]]; then
+        shift
+        printf "%b" "${WARN}$*"
+    else
+        printf "%b\n" "${WARN}$1";
+    fi
+
+}
+
+logError() {
+
+    if [[ "${1:-}" == "-n" ]]; then
+        shift
+        printf "%b" "${ERROR}$*"
+    else
+        printf "%b\n" "${ERROR}$1";
+    fi
+
+}
+
+logDone() {
+
+    if [[ "${1:-}" == "-n" ]]; then
+        shift
+        printf "%b" "${DONE}$*"
+    else
+        printf "%b\n" "${DONE}$1";
+    fi
+
+}
+
 
 # Progress bar
 progressBar() {
@@ -83,11 +132,42 @@ progressBar() {
     local STATUS=$?
 
     # Complete the bar at 100%
-    printf "${GREEN}\r[%s] 100%%\n" "$(printf '#%.0s' $(seq 1 $BAR_LENGTH))${NC}"
+    printf "${GREEN}\r[%s] 100%%${NC}\n" "$(printf '#%.0s' $(seq 1 $BAR_LENGTH))"
 
     if [ $STATUS -ne 0 ]; then
         logError "Download failed!"
         exit 1
+    fi
+
+}
+
+backup() {
+
+    local VERSION="$1"
+
+    logWarn -n "A previous mod version ($VERSION) exists. Save a backup? [Y/n]: "
+    read SAVE_BACKUP
+    SAVE_BACKUP=${SAVE_BACKUP,,}
+
+    if [[ "$SAVE_BACKUP" != "n" && "$SAVE_BACKUP" != "no" ]]; then
+
+        local BASE="$DOWNLOAD_DIR/$MOD_NAME($VERSION)"
+        local TARGET="$BASE"
+        local COUNT=1
+
+        while [ -e "$TARGET" ]; do
+            TARGET="${BASE}_$COUNT"
+            ((COUNT++))
+        done
+
+        logInfo "Backing up existing mod to $TARGET..."
+        mv "$MOD_DIR" "$TARGET"
+
+    else
+
+        logInfo "Deleting existing mod..."
+        rm -rf "MOD_DIR"
+
     fi
 
 }
@@ -134,77 +214,22 @@ if [ -d "$MOD_DIR" ] && [ -f "$VERSION_FILE" ]; then
 
     fi
 
-    # Ask user if they want to save a backup
-    echo -en "${WARN}"
-    read -p "A previous mod version ($INSTALLED_VERSION) exists. Save a backup? [Y/n]: " SAVE_BACKUP
-    SAVE_BACKUP=${SAVE_BACKUP,,}  # convert to lowercase
-
-    if [[ "$SAVE_BACKUP" != "n" && "$SAVE_BACKUP" != "no" ]]; then
-
-        # Backup directory with incrementing number if needed
-        BACKUP_BASE="$DOWNLOAD_DIR/toum($INSTALLED_VERSION)"
-        BACKUP_DIR="$BACKUP_BASE"
-        COUNTER=1
-
-        while [ -e "$BACKUP_DIR" ]; do
-
-            BACKUP_DIR="${BACKUP_BASE}_$COUNTER"
-            COUNTER=$((COUNTER + 1))
-
-        done
-
-        logInfo "Backing up existing mod to $BACKUP_DIR..."
-        mv "$MOD_DIR" "$BACKUP_DIR"
-
-    else
-
-        logInfo "Deleting existing mod..."
-        rm -rf "$MOD_DIR"
-
-    fi
+    backup "$INSTALLED_VERSION"
 
 elif [ -d "$MOD_DIR" ]; then
 
-    # No version file, but mod exists
-    INSTALLED_VERSION="unknown"
-    echo -en "${WARN}"
-    read -p "A previous mod version exists. Save a backup? [Y/n]: " SAVE_BACKUP
-    SAVE_BACKUP=${SAVE_BACKUP,,}
-
-    if [[ "$SAVE_BACKUP" != "n" && "$SAVE_BACKUP" != "no" ]]; then
-
-         # Backup directory with incrementing number if needed
-        BACKUP_BASE="$DOWNLOAD_DIR/toum($INSTALLED_VERSION)"
-        BACKUP_DIR="$BACKUP_BASE"
-        COUNTER=1
-
-        while [ -e "$BACKUP_DIR" ]; do
-
-            BACKUP_DIR="${BACKUP_BASE}_$COUNTER"
-            COUNTER=$((COUNTER + 1))
-
-        done
-
-        logInfo "Backing up existing mod to $BACKUP_DIR..."
-        mv "$MOD_DIR" "$BACKUP_DIR"
-
-    else
-
-        logInfo "Deleting existing mod..."
-        rm -rf "$MOD_DIR"
-
-    fi
+    backup "unknown"
 
 fi
 
 # If mod folder does not exits, make it
 mkdir -p "$MOD_DIR"
 
-# Copy Among Us folder to toum
+# Copy Among Us folder to mod folder
 logInfo "Copying game folder for mod..."
 
 if ! cp -r "$GAME_DIR"/. "$MOD_DIR"/; then
-    logError "Failed to copy Among Us folder to toum."
+    logError "Failed to copy Among Us folder to $MOD_NAME."
     exit 1
 fi
 
