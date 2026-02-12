@@ -43,7 +43,7 @@ logInfo() {
         shift
         printf "%b" "${INFO}$*"
     else
-        printf "%b\n" "${INFO}$1";
+        printf "%b\n" "${INFO}$*";
     fi
 
 }
@@ -54,7 +54,7 @@ logWarn() {
         shift
         printf "%b" "${WARN}$*"
     else
-        printf "%b\n" "${WARN}$1";
+        printf "%b\n" "${WARN}$*";
     fi
 
 }
@@ -65,7 +65,7 @@ logError() {
         shift
         printf "%b" "${ERROR}$*"
     else
-        printf "%b\n" "${ERROR}$1";
+        printf "%b\n" "${ERROR}$*";
     fi
 
 }
@@ -76,8 +76,53 @@ logDone() {
         shift
         printf "%b" "${DONE}$*"
     else
-        printf "%b\n" "${DONE}$1";
+        printf "%b\n" "${DONE}$*";
     fi
+
+}
+
+
+# For dependencies
+requireCommand() {
+
+    command -v "$1" >/dev/null 2>&1 || {
+        logError "Required command '$1' is not installed."
+        exit 1
+    }
+
+}
+
+# Required dependencies
+requireCommand curl
+requireCommand jq
+requireCommand unzip
+requireCommand rsync
+
+
+# Cleanup in case script crashes mid-download
+cleanup() {
+
+    # Remove temp extraction directory
+    if [ -d "$DOWNLOAD_DIR/tmp_extract" ]; then
+        rm -rf "$DOWNLOAD_DIR/tmp_extract"
+    fi
+
+    # Remove partial download
+    if [ -f "$DOWNLOAD_DIR/$FILENAME" ]; then
+        rm -f "$DOWNLOAD_DIR/$FILENAME"
+    fi
+
+}
+
+trap cleanup EXIT
+
+
+# Grab the latest release from GitHub
+getLastestReleaseUrl() {
+
+    curl -s "https://api.github.com/repos/$OWNER/$REPO/releases/latest" |
+        jq -r --arg MATCH "$MATCH" \
+        '.assets[] | select(.name | contains($MATCH)) | .browser_download_url'
 
 }
 
@@ -166,11 +211,56 @@ backup() {
     else
 
         logInfo "Deleting existing mod..."
-        rm -rf "MOD_DIR"
+        rm -rf "$MOD_DIR"
 
     fi
 
 }
+
+
+copyGameFiles() {
+
+    logInfo "Copying game files to ${MOD_DIR}..."
+
+    cp -r "$GAME_DIR"/. "$MOD_DIR"/ || {
+
+        logError "Failed to copy Among Us folder."
+        exit 1
+
+    }
+
+}
+
+
+installModFiles() {
+
+    # Make temporary directory to extract ZIP into
+    local TMP="$DOWNLOAD_DIR/tmp_extract"
+    mkdir -p "$TMP"
+
+    # Unzip mod
+    if ! unzip -oq "$DOWNLOAD_DIR/$FILENAME" -d "$TMP"; then
+        logError "Failed to unzip mod."
+        exit 1
+    fi
+
+    # Move all game files from temp directory to the mod directory
+    for ITEM in "$TMP"/*; do
+        rsync -a --remove-source-files "$ITEM"/ "$MOD_DIR"/
+    done
+
+    # Remove temp directory and ZIP file
+    rm -rf "$TMP"
+    rm -f "$DOWNLOAD_DIR/$FILENAME"
+
+    # Write mod version to txt inside mod directory
+    echo "$LATEST_VERSION" > "$VERSION_FILE"
+
+    # Ensure all files have proper permissions
+    chmod -R u+rwX "$MOD_DIR"
+
+}
+
 
 # Check if Among Us folder exists
 if [ ! -d "$GAME_DIR" ]; then
@@ -183,10 +273,7 @@ fi
 logWarn "Make sure your game has updated before running this!"
 
 # Generate the asset URL
-ASSET_URL=$(curl -s \
-    "https://api.github.com/repos/$OWNER/$REPO/releases/latest" | \
-    jq -r --arg MATCH "$MATCH" '.assets[] | select(.name | contains($MATCH)) | .browser_download_url'
-)
+ASSET_URL=$(getLastestReleaseUrl)
 
 # Check if the asset exists
 if [ -z "$ASSET_URL" ]; then
@@ -202,7 +289,7 @@ LATEST_VERSION=$(echo "$FILENAME" | grep -oP 'v[0-9]+\.[0-9]+\.[0-9]+')
 
 logInfo "Latest mod version: $LATEST_VERSION"
 
-# Check to see if mod needs updating
+# Check to see if mod needs updating and backup
 if [ -d "$MOD_DIR" ] && [ -f "$VERSION_FILE" ]; then
 
     INSTALLED_VERSION=$(cat "$VERSION_FILE")
@@ -222,16 +309,12 @@ elif [ -d "$MOD_DIR" ]; then
 
 fi
 
+
 # If mod folder does not exits, make it
 mkdir -p "$MOD_DIR"
 
 # Copy Among Us folder to mod folder
-logInfo "Copying game folder for mod..."
-
-if ! cp -r "$GAME_DIR"/. "$MOD_DIR"/; then
-    logError "Failed to copy Among Us folder to $MOD_NAME."
-    exit 1
-fi
+copyGameFiles
 
 # Initialize DOWNLOAD_DIR/FILENAME
 : > "$DOWNLOAD_DIR/$FILENAME"
@@ -241,40 +324,7 @@ logInfo "Downloading $FILENAME...\n"
 progressBar "$ASSET_URL" "$DOWNLOAD_DIR/$FILENAME"
 logInfo "Download complete!"
 
-EXTRACTED_DIR="$DOWNLOAD_DIR/tmp_extract"
-
-mkdir -p "$EXTRACTED_DIR"
-
-# Extract mod from ZIP archive
-if ! unzip -oq "$DOWNLOAD_DIR/$FILENAME" -d "$EXTRACTED_DIR"; then
-
-    logError "Failed to unzip mod."
-    exit 1
-
-fi
-
-if [ ! -d "$EXTRACTED_DIR" ]; then
-
-    logError "Extracted directory not found!"
-    exit 1
-
-fi
-
-# Move everything to the mod directory
-for ITEM in "$EXTRACTED_DIR"/*; do
-
-    rsync -a --remove-source-files "$ITEM"/ "$MOD_DIR"/
-    
-done
-
-# Delete extracted directory and ZIP
-rm -rf "$EXTRACTED_DIR"
-rm -f "$DOWNLOAD_DIR/$FILENAME"
-
-# Update version file
-echo -e "$LATEST_VERSION" > "$VERSION_FILE"
-
-# Make sure all files are readable and writeable
-chmod -R u+rwX "$MOD_DIR"
+# Install the mod files
+installModFiles
 
 logDone "Mod updated to version $LATEST_VERSION at $MOD_DIR!"
