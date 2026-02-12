@@ -28,6 +28,63 @@ WARN="${YELLOW}[WARN]: ${NC}"
 ERROR="${RED}[ERROR]: ${NC}"
 DONE="${GREEN}[DONE]: ${NC}"
 
+# Progress bar
+progressBar() {
+
+    local URL="$1"
+    local OUTPUT="$2"
+
+    # Get total size in bytes
+    local TOTAL
+    TOTAL=$(curl -sI -L "$URL" | grep -i Content-Length | tail -n1 | awk '{print $2}' | tr -d '\r' | xargs || echo 0)
+    TOTAL=${TOTAL:-0}
+
+    local BAR_LENGTH=30
+    local DOWNLOADED=0
+    local PERCENT=0
+    local FILLED=0
+    local EMPTY=0
+    local BAR=""
+
+    # Start download in background
+    curl -sL "$URL" -o "$OUTPUT" &
+    local CURL_PID=$!
+
+    # Show progress
+    while kill -0 $CURL_PID 2>/dev/null; do
+
+        DOWNLOADED=$(stat -c %s "$OUTPUT" 2>/dev/null || echo 0)
+
+        if (( "TOTAL" > 0 )); then
+
+            PERCENT=$(( DOWNLOADED * 100 / TOTAL ))
+
+        else
+            PERCENT=0
+        fi
+
+        FILLED=$(( PERCENT * BAR_LENGTH / 100 ))
+        EMPTY=$(( BAR_LENGTH - FILLED ))
+        BAR="$(printf '#%.0s' $(seq 1 $FILLED))$(printf ' %.0s' $(seq 1 $EMPTY))"
+
+        printf "\r[%s] %3d%%" "$BAR" "$PERCENT"
+        sleep 0.2
+    done
+
+    # Wait for curl to finish and capture exit code
+    wait $CURL_PID
+    local STATUS=$?
+
+    # Complete the bar at 100%
+    printf "\r[%s] 100%%\n" "$(printf '#%.0s' $(seq 1 $BAR_LENGTH))"
+
+    if [ $STATUS -ne 0 ]; then
+        echo -e "${ERROR}Download failed!"
+        exit 1
+    fi
+
+}
+
 # Check if Among Us folder exists
 if [ ! -d "$GAME_DIR" ]; then
 
@@ -144,15 +201,13 @@ if ! cp -r "$GAME_DIR"/. "$MOD_DIR"/; then
     exit 1
 fi
 
-# Download mod
-echo -e "${INFO}Downloading $FILENAME to $DOWNLOAD_DIR...\n"
+# Initialize DOWNLOAD_DIR/FILENAME
+: > "$DOWNLOAD_DIR/$FILENAME"
 
-if ! curl -L -o "$DOWNLOAD_DIR/$FILENAME" "$ASSET_URL"; then
-    echo "\n ${ERROR}Failed to download mod."
-    exit 1
-fi
-
-echo -e "\n${INFO}Finished downloading mod."
+# Download asset
+echo -e "${INFO}Downloading $FILENAME..."
+progressBar "$ASSET_URL" "$DOWNLOAD_DIR/$FILENAME"
+echo -e "${INFO}Download complete!"
 
 EXTRACTED_DIR="$DOWNLOAD_DIR/tmp_extract"
 
@@ -177,7 +232,7 @@ fi
 for ITEM in "$EXTRACTED_DIR"/*; do
 
     rsync -a --remove-source-files "$ITEM"/ "$MOD_DIR"/
-
+    
 done
 
 # Delete extracted directory and ZIP
@@ -188,6 +243,6 @@ rm -f "$DOWNLOAD_DIR/$FILENAME"
 echo -e "$LATEST_VERSION" > "$VERSION_FILE"
 
 # Make sure all files are readable and writeable
-chmod -R u+rw "$MOD_DIR"
+chmod -R u+rwX "$MOD_DIR"
 
 echo -e "${DONE}Mod updated to version $LATEST_VERSION at $MOD_DIR!"
