@@ -310,52 +310,58 @@ updateCheck() {
 }
 
 
-# Check if Among Us folder exists
-if [ ! -d "$GAME_DIR" ]; then
+main() {
 
-    logError "Among Us folder not found at $GAME_DIR"
-    exit 1
+    # Check if Among Us folder exists
+    if [ ! -d "$GAME_DIR" ]; then
 
-fi
+        logError "Among Us folder not found at $GAME_DIR"
+        exit 1
 
-logWarn "Make sure your game has updated before running this!"
+    fi
 
-# Generate the asset URL
-ASSET_URL=$(getLatestReleaseUrl)
+    logWarn "Make sure your game has updated before running this!"
 
-# Check if the asset exists
-if [ -z "$ASSET_URL" ]; then
+    # Generate the asset URL
+    ASSET_URL=$(getLatestReleaseUrl)
 
-    logError "No matching asset found at $OWNER/$REPO/releases/latest!"
-    exit 1
+    # Check if the asset exists
+    if [ -z "$ASSET_URL" ]; then
 
-fi
+        logError "No matching asset found at $OWNER/$REPO/releases/latest!"
+        exit 1
 
-# Get filename and latest version from the asset URL
-FILENAME=$(basename "$ASSET_URL")
-LATEST_VERSION=$(echo "$FILENAME" | grep -oP 'v[0-9]+\.[0-9]+\.[0-9]+')
+    fi
 
-# Check if latest version exists
-if [[ -z "$LATEST_VERSION" ]]; then
-    logError "Could not determine latest mod version from filename!"
-    exit 1
-fi
+    # Get filename and latest version from the asset URL
+    FILENAME=$(basename "$ASSET_URL")
+    LATEST_VERSION=$(echo "$FILENAME" | grep -oP 'v[0-9]+\.[0-9]+\.[0-9]+')
 
-logInfo "Latest mod version: $LATEST_VERSION"
+    # Check if latest version exists
+    if [[ -z "$LATEST_VERSION" ]]; then
+        logError "Could not determine latest mod version from filename!"
+        exit 1
+    fi
 
-# Check if mod is up to date
-updateCheck
+    logInfo "Latest mod version: $LATEST_VERSION"
 
-# If mod folder does not exits, make it
-mkdir -p "$MOD_DIR"
+    # Check if mod is up to date
+    updateCheck
 
-# Copy Among Us folder to mod folder
-copyGameFiles
+    # If mod folder does not exits, make it
+    mkdir -p "$MOD_DIR"
 
-# Download asset
-download "$ASSET_URL" "$DOWNLOAD_DIR/$FILENAME"
+    # Copy Among Us folder to mod folder
+    copyGameFiles
 
-# Install the mod files
-installModFiles
+    # Download asset
+    download "$ASSET_URL" "$DOWNLOAD_DIR/$FILENAME"
 
-logDone "Mod updated to version $LATEST_VERSION at $MOD_DIR!"
+    # Install the mod files
+    installModFiles
+
+    logDone "Mod updated to version $LATEST_VERSION at $MOD_DIR!"
+
+}
+
+main "$@"
