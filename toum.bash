@@ -31,6 +31,7 @@ DONE="${GREEN}[DONE]: ${NC}"
 # Progress bar
 progressBar() {
 
+    # URL and OUTPUT from outside function
     local URL="$1"
     local OUTPUT="$2"
 
@@ -65,10 +66,11 @@ progressBar() {
 
         FILLED=$(( PERCENT * BAR_LENGTH / 100 ))
         EMPTY=$(( BAR_LENGTH - FILLED ))
-        BAR="$(printf '#%.0s' $(seq 1 $FILLED))$(printf ' %.0s' $(seq 1 $EMPTY))"
+        BAR="$(printf "%*s" "$FILLED" "" | tr ' ' '#')$(printf "%*s" "$EMPTY" "")"
 
-        printf "\r[%s] %3d%%" "$BAR" "$PERCENT"
+        printf "\r[%-${BAR_LENGTH}s] %3d%%" "$BAR" "$PERCENT"
         sleep 0.2
+
     done
 
     # Wait for curl to finish and capture exit code
@@ -205,7 +207,7 @@ fi
 : > "$DOWNLOAD_DIR/$FILENAME"
 
 # Download asset
-echo -e "${INFO}Downloading $FILENAME..."
+echo -e "${INFO}Downloading $FILENAME...\n"
 progressBar "$ASSET_URL" "$DOWNLOAD_DIR/$FILENAME"
 echo -e "${INFO}Download complete!"
 
