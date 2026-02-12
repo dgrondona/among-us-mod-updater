@@ -104,12 +104,16 @@ cleanup() {
 
     # Remove temp extraction directory
     if [ -d "$DOWNLOAD_DIR/tmp_extract" ]; then
-        rm -rf "$DOWNLOAD_DIR/tmp_extract"
+
+        rm -rf "$DOWNLOAD_DIR/tmp_extract" 2>/dev/null || true
+
     fi
 
     # Remove partial download
     if [ -f "$DOWNLOAD_DIR/$FILENAME" ]; then
-        rm -f "$DOWNLOAD_DIR/$FILENAME"
+
+        rm -f "$DOWNLOAD_DIR/$FILENAME" 2>/dev/null || true
+
     fi
 
 }
@@ -130,59 +134,75 @@ getLastestReleaseUrl() {
 # Progress bar
 progressBar() {
 
-    # URL and OUTPUT from outside function
-    local URL="$1"
-    local OUTPUT="$2"
-
-    # Get total size in bytes
-    local TOTAL
-    TOTAL=$(curl -sI -L "$URL" | grep -i Content-Length | tail -n1 | awk '{print $2}' | tr -d '\r' | xargs || echo 0)
-    TOTAL=${TOTAL:-0}
+    # Initialize all variables
+    local CURRENT="$1"
+    local TOTAL="$2"
 
     local BAR_LENGTH=30
-    local DOWNLOADED=0
     local PERCENT=0
     local FILLED=0
     local EMPTY=0
     local BAR=""
 
-    # Start download in background
+    # Avoid divide by 0
+    if (( TOTAL > 0 )); then
+        PERCENT=$(( CURRENT * 100 / TOTAL ))
+    else
+        PERCENT=0
+    fi
+    
+    # Set variables
+    FILLED=$(( PERCENT * BAR_LENGTH / 100 ))
+    EMPTY=$(( BAR_LENGTH - FILLED ))
+    BAR="$(printf "%*s" "$FILLED" "" | tr ' ' '#')$(printf "%*s" "$EMPTY" "")"
+
+    # Print progress bar
+    printf "\r[%-${BAR_LENGTH}s] %3d%%" "$BAR" "$PERCENT"
+
+    # Finish
+    if (( CURRENT >= TOTAL )); then
+        printf "${GREEN}\r[%s] 100%%${NC}\n" "$(printf '#%.0s' $(seq 1 $BAR_LENGTH))"
+    fi
+
+}
+
+
+# Progress bar
+download() {
+
+    logInfo "Downloading $FILENAME..."
+
+    local URL="$1"
+    local OUTPUT="$2"
+
+    : > "$OUTPUT"
+
+    local TOTAL
+    TOTAL=$(curl -sI -L "$URL" | grep -i Content-Length | tail -n1 | awk '{print $2}' | tr -d '\r' | xargs || echo 0)
+    TOTAL=${TOTAL:-0}
+
     curl -sL "$URL" -o "$OUTPUT" &
-    local CURL_PID=$!
+    local PID=$!
 
-    # Show progress
-    while kill -0 $CURL_PID 2>/dev/null; do
-
+    while kill -0 $PID 2>/dev/null; do
+        local DOWNLOADED
         DOWNLOADED=$(stat -c %s "$OUTPUT" 2>/dev/null || echo 0)
+        progressBar "$DOWNLOADED" "$TOTAL"
 
-        if (( "TOTAL" > 0 )); then
-
-            PERCENT=$(( DOWNLOADED * 100 / TOTAL ))
-
-        else
-            PERCENT=0
-        fi
-
-        FILLED=$(( PERCENT * BAR_LENGTH / 100 ))
-        EMPTY=$(( BAR_LENGTH - FILLED ))
-        BAR="$(printf "%*s" "$FILLED" "" | tr ' ' '#')$(printf "%*s" "$EMPTY" "")"
-
-        printf "\r[%-${BAR_LENGTH}s] %3d%%" "$BAR" "$PERCENT"
         sleep 0.2
-
     done
 
-    # Wait for curl to finish and capture exit code
-    wait $CURL_PID
+    wait $PID
     local STATUS=$?
 
-    # Complete the bar at 100%
-    printf "${GREEN}\r[%s] 100%%${NC}\n" "$(printf '#%.0s' $(seq 1 $BAR_LENGTH))"
+    progressBar "$TOTAL" "$TOTAL"
 
     if [ $STATUS -ne 0 ]; then
-        logError "Download failed!"
+        logError "Download failed for $OUTPUT"
         exit 1
     fi
+
+    logInfo "Download complete!"
 
 }
 
@@ -262,6 +282,31 @@ installModFiles() {
 }
 
 
+updateCheck() {
+
+    # Check to see if mod needs updating and backup
+    if [ -d "$MOD_DIR" ] && [ -f "$VERSION_FILE" ]; then
+
+        INSTALLED_VERSION=$(cat "$VERSION_FILE")
+
+        if [ "$INSTALLED_VERSION" == "$LATEST_VERSION" ]; then
+
+            logInfo "Mod is already up to date ($INSTALLED_VERSION)."
+            exit 0
+
+        fi
+
+        backup "$INSTALLED_VERSION"
+
+    elif [ -d "$MOD_DIR" ]; then
+
+        backup "unknown"
+
+    fi
+
+}
+
+
 # Check if Among Us folder exists
 if [ ! -d "$GAME_DIR" ]; then
 
@@ -289,26 +334,8 @@ LATEST_VERSION=$(echo "$FILENAME" | grep -oP 'v[0-9]+\.[0-9]+\.[0-9]+')
 
 logInfo "Latest mod version: $LATEST_VERSION"
 
-# Check to see if mod needs updating and backup
-if [ -d "$MOD_DIR" ] && [ -f "$VERSION_FILE" ]; then
-
-    INSTALLED_VERSION=$(cat "$VERSION_FILE")
-
-    if [ "$INSTALLED_VERSION" == "$LATEST_VERSION" ]; then
-
-        logInfo "Mod is already up to date ($INSTALLED_VERSION)."
-        exit 0
-
-    fi
-
-    backup "$INSTALLED_VERSION"
-
-elif [ -d "$MOD_DIR" ]; then
-
-    backup "unknown"
-
-fi
-
+# Check if mod is up to date
+updateCheck
 
 # If mod folder does not exits, make it
 mkdir -p "$MOD_DIR"
@@ -316,13 +343,8 @@ mkdir -p "$MOD_DIR"
 # Copy Among Us folder to mod folder
 copyGameFiles
 
-# Initialize DOWNLOAD_DIR/FILENAME
-: > "$DOWNLOAD_DIR/$FILENAME"
-
 # Download asset
-logInfo "Downloading $FILENAME...\n"
-progressBar "$ASSET_URL" "$DOWNLOAD_DIR/$FILENAME"
-logInfo "Download complete!"
+download "$ASSET_URL" "$DOWNLOAD_DIR/$FILENAME"
 
 # Install the mod files
 installModFiles
