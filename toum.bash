@@ -217,17 +217,7 @@ backup() {
 
     if [[ "$SAVE_BACKUP" != "n" && "$SAVE_BACKUP" != "no" ]]; then
 
-        local BASE="$DOWNLOAD_DIR/$MOD_NAME($VERSION)"
-        local TARGET="$BASE"
-        local COUNT=1
-
-        while [ -e "$TARGET" ]; do
-            TARGET="${BASE}_$COUNT"
-            ((COUNT++))
-        done
-
-        logInfo "Backing up existing mod to $TARGET..."
-        rsync -a --remove-source-files "$MOD_DIR"/ "$TARGET"/
+        doBackup "$VERSION"
 
     else
 
@@ -235,6 +225,24 @@ backup() {
         rm -rf "$MOD_DIR"
 
     fi
+
+}
+
+doBackup() {
+
+    local VERSION="$1"
+
+    local BASE="$DOWNLOAD_DIR/$MOD_NAME($VERSION)"
+    local TARGET="$BASE"
+    local COUNT=1
+
+    while [ -e "$TARGET" ]; do
+        TARGET="${BASE}_$COUNT"
+        ((COUNT++))
+    done
+
+    logInfo "Backing up existing mod to $TARGET..."
+    rsync -a --remove-source-files "$MOD_DIR"/ "$TARGET"/
 
 }
 
@@ -288,29 +296,49 @@ installModFiles() {
 
 updateCheck() {
 
-    if [[ $FORCE_UPDATE -eq 1 ]]; then
-        logInfo "Force update enabled, skipping version check."
+    if [ ! -d "$MOD_DIR" ]; then
+
+        return
+
     fi
 
-    # Check to see if mod needs updating and backup
-    if [ -d "$MOD_DIR" ] && [ -f "$VERSION_FILE" ]; then
+    if [ -f "$VERSION_FILE" ]; then
 
         INSTALLED_VERSION=$(cat "$VERSION_FILE")
 
-        if [ "$INSTALLED_VERSION" == "$LATEST_VERSION" ] && [[ $FORCE_UPDATE -eq 0 ]]; then
+    else
 
-            logInfo "Mod is already up to date ($INSTALLED_VERSION)."
-            exit 0
+        INSTALLED_VERSION="unknown"
 
-        fi
+    fi
 
-        if [[ $SKIP_BACKUP -eq 0 ]]; then
-            backup "$INSTALLED_VERSION"
-        fi
+    if [[ "$FORCE_UPDATE" -eq 1 ]]; then
 
-    elif [ -d "$MOD_DIR" ] && [[ $SKIP_BACKUP -eq 0 ]]; then
+        logInfo "Force update enabled, skipping version check."
 
-        backup "unknown"
+    fi
+
+    if [[ "$FORCE_UPDATE" -eq 0 ]] && [ "$INSTALLED_VERSION" == "$LATEST_VERSION" ]; then
+
+        logInfo "Mod is already up to date ($INSTALLED_VERSION)."
+        exit 0
+
+    fi
+
+    if [[ "$FORCE_BACKUP" -eq 1 ]]; then
+
+        logInfo "Force backup enabled"
+        doBackup "${INSTALLED_VERSION}"
+
+    elif [[ "$SKIP_BACKUP" -eq 1 ]]; then
+
+        logInfo "Skip backup enabled, skipping backup."
+        logInfo "Deleting existing mod..."
+        rm -rf "$MOD_DIR"
+
+    else
+
+        backup "${INSTALLED_VERSION}"
 
     fi
 
@@ -319,6 +347,7 @@ updateCheck() {
 
 FORCE_UPDATE=0
 SKIP_BACKUP=0
+FORCE_BACKUP=0
 
 usage() {
 
@@ -326,9 +355,10 @@ usage() {
 Usage: $0 [OPTIONS]
 
 Options:
-    -f, --force       Force update even if mod is up to date
-    -n, --no-backup   Skip backing up existing mod
-    -h, --help        Show this help message
+    -f, --force          Force update even if mod is up to date
+    -n, --no-backup      Skip backing up existing mod
+    -b, --force-backup   Force backup of existing mod
+    -h, --help           Show this help message
 EOF
     exit 0
 
@@ -342,6 +372,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -n|--no-backup)
             SKIP_BACKUP=1
+            shift
+            ;;
+        -b|--force-backup)
+            FORCE_BACKUP=1
             shift
             ;;
         -h|--help)
