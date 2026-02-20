@@ -4,6 +4,7 @@ set -eu
 IFS=' 	
 '
 
+
 # Information for downloading from GitHub
 OWNER="AU-Avengers"
 REPO="TOU-Mira"
@@ -13,9 +14,30 @@ MOD_NAME="toum"
 # Download must include this string
 MATCH="steam-itch"
 
-# The directory where the file is saved
-DOWNLOAD_DIR="$HOME/.steam/steam/steamapps/common"
 
+OS="$(uname -s)"
+
+case "$OS" in
+    Linux*)
+        PLATFORM="linux"
+        DOWNLOAD_DIR="$HOME/.steam/steam/steamapps/common"
+        ;;
+    Darwin*)
+        PLATFORM="mac"
+        DOWNLOAD_DIR="$HOME/Library/Application Support/Steam/steamapps/common"
+        ;;
+    MINGW*|MSYS*|CYGWIN*)
+        PLATFORM="windows"
+        # Convert typical Steam path to MSYS/Git Bash style
+        DOWNLOAD_DIR="/c/Program Files (x86)/Steam/steamapps/common"
+        ;;
+    *)
+        logError "Unsupported OS: $OS"
+        exit 1
+        ;;
+esac
+
+# Directory references based on what we set in OS detection
 GAME_DIR="$DOWNLOAD_DIR/Among Us"
 MOD_DIR="$DOWNLOAD_DIR/$MOD_NAME"
 MOD_OLD_DIR="$DOWNLOAD_DIR/$MOD_NAME(old)"
@@ -85,21 +107,30 @@ logDone() {
 }
 
 
-# For dependencies
-requireCommand() {
+logInfo "Detected OS: $PLATFORM"
+logInfo "Game directory: $GAME_DIR"
+logInfo "Mod directory: $MOD_DIR"
 
-    command -v "$1" >/dev/null 2>&1 || {
-        logError "Required command '$1' is not installed."
-        exit 1
-    }
 
+checkDependencies() {
+    REQUIRED_CMDS="curl jq unzip rsync"
+
+    for cmd in $REQUIRED_CMDS; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            case "$PLATFORM" in
+                linux|mac)
+                    logError "Required command '$cmd' not found. Install it via your package manager."
+                    ;;
+                windows)
+                    logError "Required command '$cmd' not found. Make sure Git Bash or WSL has it installed."
+                    ;;
+            esac
+            exit 1
+        fi
+    done
 }
 
-# Required dependencies
-requireCommand curl
-requireCommand jq
-requireCommand unzip
-requireCommand rsync
+checkDependencies
 
 
 # Cleanup in case script crashes mid-download
