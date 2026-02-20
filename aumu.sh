@@ -1,6 +1,8 @@
-#!/bin/bash
-set -euo pipefail
-shopt -s nullglob dotglob # Include hidden files in globs
+#!/usr/bin/env sh
+set -eu
+
+IFS=' 	
+'
 
 # Information for downloading from GitHub
 OWNER="AU-Avengers"
@@ -40,7 +42,7 @@ logInfo -n "Text Here"
 '
 logInfo() {
 
-    if [[ "${1:-}" == "-n" ]]; then
+    if [ "${1:-}" = "-n" ]; then
         shift
         printf "%b" "${INFO}$*"
     else
@@ -51,7 +53,7 @@ logInfo() {
 
 logWarn() {
 
-    if [[ "${1:-}" == "-n" ]]; then
+    if [ "${1:-}" = "-n" ]; then
         shift
         printf "%b" "${WARN}$*"
     else
@@ -62,7 +64,7 @@ logWarn() {
 
 logError() {
 
-    if [[ "${1:-}" == "-n" ]]; then
+    if [ "${1:-}" = "-n" ]; then
         shift
         printf "%b" "${ERROR}$*"
     else
@@ -73,7 +75,7 @@ logError() {
 
 logDone() {
 
-    if [[ "${1:-}" == "-n" ]]; then
+    if [ "${1:-}" = "-n" ]; then
         shift
         printf "%b" "${DONE}$*"
     else
@@ -119,7 +121,7 @@ cleanup() {
 
 }
 
-trap cleanup EXIT
+trap 'cleanup' 0
 
 
 # Grab the latest release from GitHub
@@ -134,90 +136,106 @@ getLatestReleaseUrl() {
 
 # Progress bar
 progressBar() {
+    pb_CURRENT=$1
+    pb_TOTAL=$2
+    pb_BAR_LENGTH=30
 
-    # Initialize all variables
-    local CURRENT="$1"
-    local TOTAL="$2"
-
-    local BAR_LENGTH=30
-    local PERCENT=0
-    local FILLED=0
-    local EMPTY=0
-    local BAR=""
-
-    # Avoid divide by 0
-    if (( TOTAL > 0 )); then
-        PERCENT=$(( CURRENT * 100 / TOTAL ))
+    if [ "$pb_TOTAL" -gt 0 ]; then
+        pb_PERCENT=$(( pb_CURRENT * 100 / pb_TOTAL ))
     else
-        PERCENT=0
-    fi
-    
-    # Set variables
-    FILLED=$(( PERCENT * BAR_LENGTH / 100 ))
-    EMPTY=$(( BAR_LENGTH - FILLED ))
-    BAR="$(printf "%*s" "$FILLED" "" | tr ' ' '#')$(printf "%*s" "$EMPTY" "")"
-
-    # Print progress bar
-    printf "\r[%-${BAR_LENGTH}s] %3d%%" "$BAR" "$PERCENT"
-
-    # Finish
-    if (( CURRENT >= TOTAL )); then
-        printf "${GREEN}\r[%s] 100%%${NC}\n" "$(printf '#%.0s' $(seq 1 $BAR_LENGTH))"
+        pb_PERCENT=0
     fi
 
+    pb_FILLED=$(( pb_PERCENT * pb_BAR_LENGTH / 100 ))
+    pb_EMPTY=$(( pb_BAR_LENGTH - pb_FILLED ))
+
+    pb_BAR="$(printf "%*s" "$pb_FILLED" "" | tr ' ' '#')"
+    pb_BAR="${pb_BAR}$(printf "%*s" "$pb_EMPTY" "")"
+
+    # If download is complete, print green and newline
+    if [ "$pb_CURRENT" -ge "$pb_TOTAL" ] && [ "$pb_TOTAL" -ne 0 ]; then
+        printf "${GREEN}\r[%-${pb_BAR_LENGTH}s] 100%%${NC}\n" "$(printf '#%.0s' $(seq 1 $pb_BAR_LENGTH))"
+    else
+        printf "\r[%-${pb_BAR_LENGTH}s] %3d%%" "$pb_BAR" "$pb_PERCENT"
+    fi
 }
 
 
-# Progress bar
-download() {
+# Try both stat -c and stat -f for mac and linux
+get_size() {
+    stat -c %s "$1" 2>/dev/null || stat -f %z "$1" 2>/dev/null || echo 0
+}
 
+
+# Get the total size of the download
+get_total_size() {
+    url="$1"
+    # Use curl with -sI -L to follow redirects, grep Content-Length anywhere, pick the last one
+    total=$(curl -sI -L "$url" 2>/dev/null | \
+            grep -i 'Content-Length:' | \
+            tail -n 1 | \
+            awk '{print $2}' | tr -d '\r')
+    # fallback to 0 if empty
+    total=${total:-0}
+    echo "$total"
+}
+
+
+# Download file
+download() {
     logInfo "Downloading $FILENAME..."
 
-    local URL="$1"
-    local OUTPUT="$2"
+    d_URL="$1"
+    d_OUTPUT="$2"
 
-    : > "$OUTPUT"
+    # Create file empty first (so loop has something to stat)
+    : > "$d_OUTPUT"
 
-    local TOTAL
-    TOTAL=$(curl -sI -L "$URL" | grep -i Content-Length | tail -n1 | awk '{print $2}' | tr -d '\r' | xargs || echo 0)
-    TOTAL=${TOTAL:-0}
+    # Get total size from headers
+    d_TOTAL=$(get_total_size "$d_URL")
 
-    curl -sL "$URL" -o "$OUTPUT" &
-    local PID=$!
+    # Start download in background
+    curl -sL "$d_URL" -o "$d_OUTPUT" &
+    d_PID=$!
 
-    while kill -0 $PID 2>/dev/null; do
-        local DOWNLOADED
-        DOWNLOADED=$(stat -c %s "$OUTPUT" 2>/dev/null || echo 0)
-        progressBar "$DOWNLOADED" "$TOTAL"
+    # Wait for file to exist before polling
+    while [ ! -f "$d_OUTPUT" ]; do
+        sleep 0.05
+    done
 
+    # Poll download progress
+    while kill -0 "$d_PID" 2>/dev/null; do
+        d_DOWNLOADED=$(get_size "$d_OUTPUT")
+        progressBar "$d_DOWNLOADED" "$d_TOTAL"
         sleep 0.2
     done
 
-    wait $PID
-    local STATUS=$?
+    wait "$d_PID"
+    d_STATUS=$?
 
-    progressBar "$TOTAL" "$TOTAL"
+    # Print full bar at the end
+    progressBar "$d_TOTAL" "$d_TOTAL"
 
-    if [ $STATUS -ne 0 ]; then
-        logError "Download failed for $OUTPUT"
+    if [ "$d_STATUS" -ne 0 ]; then
+        logError "Download failed for $d_OUTPUT"
         exit 1
     fi
 
     logInfo "Download complete!"
-
 }
+
 
 backup() {
 
-    local VERSION="$1"
+    b_VERSION="$1"
 
-    logWarn -n "A previous mod version ($VERSION) exists. Save a backup? [Y/n]: "
-    read SAVE_BACKUP
-    SAVE_BACKUP=${SAVE_BACKUP,,}
+    logWarn -n "A previous mod version ($b_VERSION) exists. Save a backup? [Y/n]: "
+    read SAVE_BACKUP || SAVE_BACKUP=""
+    SAVE_BACKUP=$(printf "%s" "$SAVE_BACKUP" | tr '[:upper:]' '[:lower:]')
 
-    if [[ "$SAVE_BACKUP" != "n" && "$SAVE_BACKUP" != "no" ]]; then
+    if [ "$SAVE_BACKUP" != "n" -a "$SAVE_BACKUP" != "no" ]; then
 
-        doBackup "$VERSION"
+        doBackup "$b_VERSION"
 
     else
 
@@ -230,19 +248,19 @@ backup() {
 
 doBackup() {
 
-    local VERSION="$1"
+    db_VERSION="$1"
 
-    local BASE="$DOWNLOAD_DIR/$MOD_NAME($VERSION)"
-    local TARGET="$BASE"
-    local COUNT=1
+    db_BASE="$DOWNLOAD_DIR/$MOD_NAME($db_VERSION)"
+    db_TARGET="$db_BASE"
+    db_COUNT=1
 
-    while [ -e "$TARGET" ]; do
-        TARGET="${BASE}_$COUNT"
-        ((COUNT++))
+    while [ -e "$db_TARGET" ]; do
+        db_TARGET="${db_BASE}_$db_COUNT"
+        db_COUNT=$((db_COUNT + 1))
     done
 
-    logInfo "Backing up existing mod to $TARGET..."
-    rsync -a --remove-source-files "$MOD_DIR"/ "$TARGET"/
+    logInfo "Backing up existing mod to $db_TARGET..."
+    rsync -a --remove-source-files "$MOD_DIR"/ "$db_TARGET"/
 
 }
 
@@ -264,7 +282,7 @@ copyGameFiles() {
 installModFiles() {
 
     # Make temporary directory to extract ZIP into
-    local TMP="$DOWNLOAD_DIR/tmp_extract"
+    TMP="$DOWNLOAD_DIR/tmp_extract"
     mkdir -p "$TMP"
 
     # Unzip mod
@@ -276,8 +294,10 @@ installModFiles() {
 
     # Move all game files from temp directory to the mod directory
     for ITEM in "$TMP"/*; do
+        [ -e "$ITEM" ] || continue
         rsync -a --remove-source-files "$ITEM"/ "$MOD_DIR"/
     done
+
 
     # Remove temp directory and ZIP file
     rm -rf "$TMP"
@@ -312,25 +332,25 @@ updateCheck() {
 
     fi
 
-    if [[ "$FORCE_UPDATE" -eq 1 ]]; then
+    if [ "$FORCE_UPDATE" -eq 1 ]; then
 
         logInfo "Force update enabled, skipping version check."
 
     fi
 
-    if [[ "$FORCE_UPDATE" -eq 0 ]] && [ "$INSTALLED_VERSION" == "$LATEST_VERSION" ]; then
+    if [ "$FORCE_UPDATE" -eq 0 ] && [ "$INSTALLED_VERSION" = "$LATEST_VERSION" ]; then
 
         logInfo "Mod is already up to date ($INSTALLED_VERSION)."
         exit 0
 
     fi
 
-    if [[ "$FORCE_BACKUP" -eq 1 ]]; then
+    if [ "$FORCE_BACKUP" -eq 1 ]; then
 
         logInfo "Force backup enabled"
         doBackup "${INSTALLED_VERSION}"
 
-    elif [[ "$SKIP_BACKUP" -eq 1 ]]; then
+    elif [ "$SKIP_BACKUP" -eq 1 ]; then
 
         logInfo "Skip backup enabled, skipping backup."
         logInfo "Deleting existing mod..."
@@ -364,7 +384,7 @@ EOF
 
 }
 
-while [[ $# -gt 0 ]]; do
+while [ $# -gt 0 ]; do
     case $1 in
         -f|--force)
             FORCE_UPDATE=1
@@ -414,10 +434,10 @@ main() {
 
     # Get filename and latest version from the asset URL
     FILENAME=$(basename "$ASSET_URL")
-    LATEST_VERSION=$(echo "$FILENAME" | grep -oP 'v[0-9]+\.[0-9]+\.[0-9]+')
+    LATEST_VERSION=$(printf "%s\n" "$FILENAME" | sed -n 's/.*\(v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p')
 
     # Check if latest version exists
-    if [[ -z "$LATEST_VERSION" ]]; then
+    if [ -z "$LATEST_VERSION" ]; then
         logError "Could not determine latest mod version from filename!"
         exit 1
     fi
