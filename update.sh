@@ -19,17 +19,22 @@ OS="$(uname -s)"
 
 case "$OS" in
     Linux*)
-        PLATFORM="linux"
-        DOWNLOAD_DIR="$HOME/.steam/steam/steamapps/common"
+        # Detect wsl vs linux
+        if grep -aiE "(microsot|wsl)" /proc/sys/kernel/osrelease 2>/dev/null; then
+            PLATFORM="windows"
+            DOWNLOAD_DIR="/mnt/c/Users/$(cmd.exe /C "echo %USERNAME%" 2>/dev/null | tr -d '\r')/Program Files (x86)/steam/steamapps/common"
+        else
+            PLATFORM="linux"
+            DOWNLOAD_DIR="$HOME/.steam/steam/steamapps/common"
+        fi
         ;;
     Darwin*)
         PLATFORM="mac"
         DOWNLOAD_DIR="$HOME/Library/Application Support/Steam/steamapps/common"
         ;;
     MINGW*|MSYS*|CYGWIN*)
-        PLATFORM="windows"
-        # Convert typical Steam path to MSYS/Git Bash style
-        DOWNLOAD_DIR="/c/Program Files (x86)/Steam/steamapps/common"
+        logError "Be sure to run this with WSL when using Windows"
+        exit 1
         ;;
     *)
         logError "Unsupported OS: $OS"
