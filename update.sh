@@ -20,7 +20,7 @@ OS="$(uname -s)"
 case "$OS" in
     Linux*)
         # Detect wsl vs linux
-        if grep -aiE "(microsot|wsl)" /proc/sys/kernel/osrelease 2>/dev/null; then
+        if grep -aiE "(microsoft|wsl)" /proc/sys/kernel/osrelease 2>/dev/null; then
             PLATFORM="windows"
             DOWNLOAD_DIR="/mnt/c/Users/$(cmd.exe /C "echo %USERNAME%" 2>/dev/null | tr -d '\r')/Program Files (x86)/steam/steamapps/common"
         else

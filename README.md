@@ -49,7 +49,7 @@ wsl --install
 Once WSL is installed, you will need to restart your computer. Then you can open the terminal as an administrator again and run:
 
 ```shell
-wsl --install -d ubuntu
+wsl --install ubuntu
 ```
 
 You will then be prompted to set a username and password.
@@ -62,6 +62,21 @@ sudo apt update && sudo apt upgrade
 
 For this you may need to enable `sudo` in the Windows developer settings. There should be a link to it in the commandline.
 
+cd /mnt/c/Users/USERNAME (look for bin on windows)
+
+git clone
+
+cd among-us-mod-updater
+
+install among us
+
+run script
+
+add modded to steam (maybe different section)
+
 To Be Continued in a bit
 
 ---
+
+for download dir, make it check possible locations for game for steam and epic games, epic games is in
+/mnt/c/Users/user/Program Files/Epic Games
