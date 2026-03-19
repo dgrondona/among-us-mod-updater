@@ -4,49 +4,117 @@ set -eu
 IFS=' 	
 '
 
-
 # Information for downloading from GitHub
 OWNER="AU-Avengers"
 REPO="TOU-Mira"
 
 MOD_NAME="toum"
 
-# Download must include this string
 MATCH="steam-itch"
 
+# Detect the OS being used
+detectOS() {
+    OS="$(uname -s)"
 
-OS="$(uname -s)"
+    case "$OS" in
+        Linux*)   OS_TYPE="linux" ;;
+        Darwin*)  OS_TYPE="mac" ;;
+        *)
+            logError "Unsupported OS: $OS"
+            exit 1
+            ;;
+    esac
+}
 
-case "$OS" in
-    Linux*)
-        # Detect wsl vs linux
-        if grep -aiE "(microsoft|wsl)" /proc/sys/kernel/osrelease 2>/dev/null; then
-            PLATFORM="windows"
-            DOWNLOAD_DIR="/mnt/c/Users/$(cmd.exe /C "echo %USERNAME%" 2>/dev/null | tr -d '\r')/Program Files (x86)/steam/steamapps/common"
-        else
-            PLATFORM="linux"
-            DOWNLOAD_DIR="$HOME/.steam/steam/steamapps/common"
+# Detect if using wsl
+detectEnvironment() {
+
+    ENVIRONMENT="native"
+
+    if [ "$OS_TYPE" = "linux" ]; then
+        if grep -qiE "(microsoft|wsl)" /proc/sys/kernel/osrelease 2>/dev/null; then
+            ENVIRONMENT="wsl"
         fi
-        ;;
-    Darwin*)
-        PLATFORM="mac"
-        DOWNLOAD_DIR="$HOME/Library/Application Support/Steam/steamapps/common"
-        ;;
-    MINGW*|MSYS*|CYGWIN*)
-        logError "Be sure to run this with WSL when using Windows"
-        exit 1
-        ;;
-    *)
-        logError "Unsupported OS: $OS"
-        exit 1
-        ;;
-esac
+    fi
 
-# Directory references based on what we set in OS detection
-GAME_DIR="$DOWNLOAD_DIR/Among Us"
-MOD_DIR="$DOWNLOAD_DIR/$MOD_NAME"
-MOD_OLD_DIR="$DOWNLOAD_DIR/$MOD_NAME(old)"
-VERSION_FILE="$MOD_DIR/version.txt"
+}
+
+# Detect if using Epic or Steam
+autoDetectPlatform() {
+
+    # If user already specified platform, respect it
+    if [ -n "${PLATFORM:-}" ]; then
+        return
+    fi
+
+    # Detect Epic (WSL only for now)
+    if [ "$ENVIRONMENT" = "wsl" ] && [ -d "/mnt/c/Games/AmongUs" ]; then
+        PLATFORM="epic"
+        MATCH="epic"
+        return
+    fi
+
+    # Default fallback
+    PLATFORM="steam"
+}
+
+# Set up file paths
+configurePaths() {
+
+    case "$PLATFORM" in
+
+        steam)
+
+            case "$OS_TYPE" in
+
+                linux)
+                    BASE="$HOME/.steam/steam/steamapps/common"
+                    ;;
+
+                mac)
+                    BASE="$HOME/Library/Application Support/Steam/steamapps/common"
+                    ;;
+
+                *)
+                    logError "Steam not supported on this OS"
+                    exit 1
+                    ;;
+            esac
+
+            # WSL Steam (optional future support)
+            if [ "$ENVIRONMENT" = "wsl" ]; then
+                BASE="/mnt/c/Program Files (x86)/Steam/steamapps/common"
+            fi
+
+            GAME_DIR="$BASE/Among Us"
+            DOWNLOAD_DIR="$BASE"
+            MOD_DIR="$BASE/$MOD_NAME"
+            INSTALL_MODE="moddir"
+            ;;
+
+        epic)
+
+            if [ "$ENVIRONMENT" != "wsl" ]; then
+                logError "Epic currently only supported via WSL"
+                exit 1
+            fi
+
+            BASE="/mnt/c/Games"
+
+            GAME_DIR="$BASE/AmongUs"
+            DOWNLOAD_DIR="$BASE"
+            MOD_DIR="$GAME_DIR"
+            INSTALL_MODE="inplace"
+            ;;
+
+        *)
+            logError "Unknown platform: $PLATFORM"
+            exit 1
+            ;;
+    esac
+
+    VERSION_FILE="$MOD_DIR/version.txt"
+}
 
 # Colors
 RED="\033[1;31m"
@@ -112,9 +180,21 @@ logDone() {
 }
 
 
-logInfo "Detected OS: $PLATFORM"
-logInfo "Game directory: $GAME_DIR"
-logInfo "Mod directory: $MOD_DIR"
+assertSafePath() {
+    TARGET="$1"
+
+    if [ -z "$TARGET" ]; then
+        logError "Empty path detected!"
+        exit 1
+    fi
+
+    case "$TARGET" in
+        "/"|"/mnt"|"/mnt/c"|"/home"|"$HOME")
+            logError "Refusing to operate on dangerous path: $TARGET"
+            exit 1
+            ;;
+    esac
+}
 
 
 checkDependencies() {
@@ -122,7 +202,7 @@ checkDependencies() {
 
     for cmd in $REQUIRED_CMDS; do
         if ! command -v "$cmd" >/dev/null 2>&1; then
-            case "$PLATFORM" in
+            case "$OS_TYPE" in
                 linux|mac)
                     logError "Required command '$cmd' not found. Install it via your package manager."
                     ;;
@@ -134,9 +214,6 @@ checkDependencies() {
         fi
     done
 }
-
-checkDependencies
-
 
 # Cleanup in case script crashes mid-download
 cleanup() {
@@ -170,6 +247,49 @@ getLatestReleaseUrl() {
 }
 
 
+confirmInPlaceInstall() {
+
+    if [ "$INSTALL_MODE" = "inplace" ]; then
+        logWarn "You are installing directly into the game directory!"
+        logWarn "This can break your game if something goes wrong."
+
+        printf "Continue? [y/N]: "
+        read CONFIRM || CONFIRM="n"
+
+        CONFIRM=$(printf "%s" "$CONFIRM" | tr '[:upper:]' '[:lower:]')
+
+        if [ "$CONFIRM" != "y" ] && [ "$CONFIRM" != "yes" ]; then
+            logInfo "Aborting."
+            exit 0
+        fi
+    fi
+
+}
+
+
+safeRemoveModDir() {
+
+    assertSafePath "$MOD_DIR"
+
+    if [ "$INSTALL_MODE" = "moddir" ]; then
+        rm -rf "$MOD_DIR"
+    else
+        logWarn "Refusing to delete game directory in in-place mode..."
+    fi
+
+}
+
+
+# Clean up for Epic's in-place install
+epicClean() {
+    logInfo "Cleaning old mod files (Epic in-place)..."
+
+    rm -rf "$GAME_DIR/BepInEx"
+    rm -rf "$GAME_DIR/doorstop_libs"
+    rm -f "$GAME_DIR/winhttp.dll"
+}
+
+
 # Progress bar
 progressBar() {
     pb_CURRENT=$1
@@ -190,7 +310,7 @@ progressBar() {
 
     # If download is complete, print green and newline
     if [ "$pb_CURRENT" -ge "$pb_TOTAL" ] && [ "$pb_TOTAL" -ne 0 ]; then
-        printf "${GREEN}\r[%-${pb_BAR_LENGTH}s] 100%%${NC}\n" "$(printf '#%.0s' $(seq 1 $pb_BAR_LENGTH))"
+        printf "${GREEN}\r[%-${pb_BAR_LENGTH}s] 100%%${NC}\n" "$(printf '#%.0s' $(awk "BEGIN {for(i=1;i<=$pb_BAR_LENGTH;i++) print \"#\"}")))"
     else
         printf "\r[%-${pb_BAR_LENGTH}s] %3d%%" "$pb_BAR" "$pb_PERCENT"
     fi
@@ -269,14 +389,14 @@ backup() {
     read SAVE_BACKUP || SAVE_BACKUP=""
     SAVE_BACKUP=$(printf "%s" "$SAVE_BACKUP" | tr '[:upper:]' '[:lower:]')
 
-    if [ "$SAVE_BACKUP" != "n" -a "$SAVE_BACKUP" != "no" ]; then
+    if [ "$SAVE_BACKUP" != "n" ] && [ "$SAVE_BACKUP" != "no" ]; then
 
         doBackup "$b_VERSION"
 
     else
 
         logInfo "Deleting existing mod..."
-        rm -rf "$MOD_DIR"
+        safeRemoveModDir
 
     fi
 
@@ -296,7 +416,7 @@ doBackup() {
     done
 
     logInfo "Backing up existing mod to $db_TARGET..."
-    rsync -a --remove-source-files "$MOD_DIR"/ "$db_TARGET"/
+    rsync -a "$MOD_DIR"/ "$db_TARGET"/
 
 }
 
@@ -331,7 +451,7 @@ installModFiles() {
     # Move all game files from temp directory to the mod directory
     for ITEM in "$TMP"/*; do
         [ -e "$ITEM" ] || continue
-        rsync -a --remove-source-files "$ITEM"/ "$MOD_DIR"/
+        rsync -a "$ITEM"/ "$MOD_DIR"/
     done
 
 
@@ -390,7 +510,7 @@ updateCheck() {
 
         logInfo "Skip backup enabled, skipping backup."
         logInfo "Deleting existing mod..."
-        rm -rf "$MOD_DIR"
+        safeRemoveModDir
 
     else
 
@@ -411,10 +531,11 @@ usage() {
 Usage: $0 [OPTIONS]
 
 Options:
-    -f, --force          Force update even if mod is up to date
-    -n, --no-backup      Skip backing up existing mod
-    -b, --force-backup   Force backup of existing mod
-    -h, --help           Show this help message
+    -f, --force                   Force update even if mod is up to date
+    -n, --no-backup               Skip backing up existing mod
+    -b, --force-backup            Force backup of existing mod
+    -p, --platform [steam|epic]   Choose platform (default: steam)
+    -h, --help                    Show this help message
 EOF
     exit 0
 
@@ -434,6 +555,15 @@ while [ $# -gt 0 ]; do
             FORCE_BACKUP=1
             shift
             ;;
+        -p|--platform)
+            if [ $# -lt 2 ]; then
+                logError "--platform requires an argument"
+                exit 1
+            fi
+
+            PLATFORM="$2"
+            shift 2
+            ;;
         -h|--help)
             usage
             ;;
@@ -446,6 +576,19 @@ done
 
 
 main() {
+
+    detectOS
+    detectEnvironment
+    autoDetectPlatform
+    configurePaths
+
+    checkDependencies
+
+    logInfo "OS: $OS_TYPE"
+    logInfo "Environment: $ENVIRONMENT"
+    logInfo "Platform: $PLATFORM"
+    logInfo "Game dir: $GAME_DIR"
+    logInfo "Mod dir: $MOD_DIR"
 
     # Check if Among Us folder exists
     if [ ! -d "$GAME_DIR" ]; then
@@ -483,11 +626,16 @@ main() {
     # Check if mod is up to date
     updateCheck
 
-    # If mod folder does not exits, make it
-    mkdir -p "$MOD_DIR"
+    confirmInPlaceInstall
 
-    # Copy Among Us folder to mod folder
-    copyGameFiles
+    # If mod folder does not exits, make it
+    if [ "$INSTALL_MODE" = "moddir" ]; then
+        mkdir -p "$MOD_DIR"
+        copyGameFiles
+    else
+        logInfo "Using in place install (Epic)"
+        epicClean
+    fi
 
     # Download asset
     download "$ASSET_URL" "$DOWNLOAD_DIR/$FILENAME"

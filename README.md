@@ -62,6 +62,8 @@ sudo apt update && sudo apt upgrade
 
 For this you may need to enable `sudo` in the Windows developer settings. There should be a link to it in the commandline.
 
+install depedencies
+
 cd /mnt/c/Users/USERNAME (look for bin on windows)
 
 git clone
@@ -69,6 +71,8 @@ git clone
 cd among-us-mod-updater
 
 install among us
+
+sudo chmod +x update.sh
 
 run script
 
@@ -79,4 +83,6 @@ To Be Continued in a bit
 ---
 
 for download dir, make it check possible locations for game for steam and epic games, epic games is in
-/mnt/c/Users/user/Program Files/Epic Games
+/mnt/c/Games/ and Among Us is called AmongUs instead of Among Us. Maybe have something that can do either Among Us or AmongUs no matter the case of spaces.
+
+You actually have to install epic games version into actually among us folder, can only play modded or not modded. So files for epic games have to be copied into regular among us. You can then update using the dll files into bepinex/plugin.
