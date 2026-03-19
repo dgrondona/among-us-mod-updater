@@ -314,7 +314,7 @@ progressBar() {
 
     # If download is complete, print green and newline
     if [ "$pb_CURRENT" -ge "$pb_TOTAL" ] && [ "$pb_TOTAL" -ne 0 ]; then
-        printf "${GREEN}\r[%s] 100%%${NC}\n" "$(printf "%${pb_BAR_LENGTH}s" "" | tr ' ' '#'))"
+        printf "${GREEN}\r[%s] 100%%${NC}\n" "$(printf "%${pb_BAR_LENGTH}s" "" | tr ' ' '#')"
     else
         printf "\r[%-${pb_BAR_LENGTH}s] %3d%%" "$pb_BAR" "$pb_PERCENT"
     fi
