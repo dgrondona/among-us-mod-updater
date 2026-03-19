@@ -180,6 +180,20 @@ logDone() {
 }
 
 
+run_cmd() {
+    # Usage: run_cmd <description> <command...>
+    DESC="$1"
+    shift
+
+    if [ "$VERBOSE" -eq 1 ]; then
+        logInfo "$DESC..."
+        "$@"
+    else
+        "$@" >/dev/null 2>&1
+    fi
+}
+
+
 assertSafePath() {
     TARGET="$1"
 
@@ -188,13 +202,31 @@ assertSafePath() {
         exit 1
     fi
 
-    case "$TARGET" in
-        "$HOME"/*|/mnt/c/*) ;;  # allow
-        *)
-            logError "Path outside expected directories: $TARGET"
-            exit 1
+    # Normalize path
+    TARGET="${TARGET%/}"
+
+    SAFE=false
+
+    case "$OS_TYPE" in
+        linux|mac)
+            case "$TARGET" in
+                "$HOME/.steam/"*|"$HOME/Library/Application Support/Steam/"* ) SAFE=true ;;
+            esac
+            ;;
+        linux)
+            if [ "$ENVIRONMENT" = "wsl" ]; then
+                case "$TARGET" in
+                    "/mnt/c/Program Files (x86)/Steam/"*|"/mnt/c/Games/"* ) SAFE=true ;;
+                esac
+            fi
             ;;
     esac
+
+    if [ "$SAFE" != true ]; then
+        logError "Unsafe path detected: $TARGET"
+        exit 1
+    fi
+
 }
 
 
@@ -419,8 +451,9 @@ doBackup() {
         db_COUNT=$((db_COUNT + 1))
     done
 
-    logInfo "Backing up existing mod to $db_TARGET..."
-    rsync -a "$MOD_DIR"/ "$db_TARGET"/
+    run_cmd "Backing up existing mod to $db_TARGET..." rsync -a${VERBOSE:+v} "$MOD_DIR"/ "$db_TARGET"/
+    #logInfo "Backing up existing mod to $db_TARGET..."
+    #rsync -a "$MOD_DIR"/ "$db_TARGET"/
 
 }
 
@@ -442,8 +475,7 @@ copyGameFiles() {
 installModFiles() {
 
     # Make temporary directory to extract ZIP into
-    TMP="$DOWNLOAD_DIR/tmp_extract"
-    mkdir -p "$TMP"
+    TMP=$(mktemp -d "$DOWNLOAD_DIR/tmp_extract.XXXXXX")
 
     # Unzip mod
     logInfo "Extracting $FILENAME..."
@@ -453,11 +485,7 @@ installModFiles() {
     fi
 
     # Move all game files from temp directory to the mod directory
-    for ITEM in "$TMP"/*; do
-        [ -e "$ITEM" ] || continue
-        rsync -a "$ITEM" "$MOD_DIR"/
-    done
-
+    rsync -a "$TMP"/ "$MOD_DIR"/
 
     # Remove temp directory and ZIP file
     rm -rf "$TMP"
@@ -528,6 +556,7 @@ updateCheck() {
 FORCE_UPDATE=0
 SKIP_BACKUP=0
 FORCE_BACKUP=0
+VERBOSE=0
 
 usage() {
 
@@ -557,6 +586,10 @@ while [ $# -gt 0 ]; do
             ;;
         -b|--force-backup)
             FORCE_BACKUP=1
+            shift
+            ;;
+        -v|--verbose)
+            VERBOSE=1
             shift
             ;;
         -p|--platform)
