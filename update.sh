@@ -509,7 +509,7 @@ installModFiles() {
     # Move all game files from temp directory to the mod directory
     for ITEM in "$TMP"/*; do
         [ -e "$ITEM" ] || continue
-        run_cmd "Copying $ITEM to $MOD_DIR" "Failed to copy $ITEM to $MOD_DIR" rsync -a${VERBOSE:+v} "$ITEM" "$MOD_DIR"/
+        run_cmd "Copying $ITEM to $MOD_DIR" "Failed to copy $ITEM to $MOD_DIR" rsync -a${VERBOSE:+v} "$ITEM"/ "$MOD_DIR"/
     done
 
     # Remove temp directory and ZIP file
