@@ -1,9 +1,6 @@
-> [!NOTE]
-> A 
-
 # Among Us Mod Updater
 
-This is a simple sheel script to update your Among Us mods. Then you don't have to do a million steps everytime your mods need updating. Supports Linux, macOS, and Windows (with WSL or Git Bash).
+A simple shell script to update your among us mods without manually moving files. Supports Linux, macOS, and Windows (via WSL).
 
 ---
 
@@ -13,6 +10,7 @@ This is a simple sheel script to update your Among Us mods. Then you don't have 
     - [Linux](#linux)
     - [Mac](#mac)
     - [Windows](#windows)
+- [**Usage**](#usage)
 
 ---
 
@@ -20,69 +18,114 @@ This is a simple sheel script to update your Among Us mods. Then you don't have 
 
 ## Linux
 
-Either clone the repository or download the latest release:
-
+1. Clone the repository:
 ```bash
 git clone https://github.com/dgrondona/among-us-mod-updater
 cd among-us-mod-updater
 ```
 
-Most Linux distributions should come with these dependencies, but you can install them with:
-
+2. Install dependencies (if not already installed):
 ```bash
+sudo apt update
 sudo apt install curl jq unzip rsync
 ```
 
-By default, the game directory is set for `~/.steam/steam/steamapps/common/Among Us`. If your game is located elsewhere, you can change `DOWNLOAD_DIR` and `GAME_DIR`.
+3. Verify Game Directory:
+By default, the script assumes your game is at `~/.steam/steam/steamapps/common/Among Us`. If your game is elsewhere, you can export these variables before running the script:
+
+```bash
+export GAME_DIR="/path/to/Among Us"
+export DOWNLOAD_DIR="/path/to/where/game/folder/is/located"
+```
+
+4. Make the script executable:
+```bash
+chmod +x update.sh
+```
 
 ## Mac
-placeholder
+
+1. Clone the repository:
+```bash
+git clone https://github.com/dgrondona/among-us-mod-updater
+cd among-us-mod-updater
+```
+
+2. Install dependencies using Homebrew:
+```bash
+brew install curl jq unzip rsync
+```
+
+3. Verify game directory:
+
+By default, the script assumes your game is at `~/Library/Application Support/Steam/steamapps/common/Among Us`. If your game is elsewhere, you can export these variables before running the script:
+```bash
+export GAME_DIR="/path/to/Among Us"
+export DOWNLOAD_DIR="/path/to/where/game/folder/is/located"
+```
+
+4. Make the script executable:
+```bash
+chmod +x update.sh
+```
 
 ## Windows
 
-To run this on Windows, you will need to install WSL. First, open the powershell or terminal as an administrator with `Right Click > Run as Administrator`. Once you have that open, you can run:
+> NOTE!
+> To run this script on Windows, WSL is required.
 
+1. Install WSL:
+
+Open PowerShell as an administrator and run:
 ```shell
 wsl --install
 ```
-
-Once WSL is installed, you will need to restart your computer. Then you can open the terminal as an administrator again and run:
-
+- Restart your computer when done.
+- Install Ubuntu (or your preferred Linux distro).
 ```shell
 wsl --install ubuntu
 ```
+- Set the username and password when prompted.
 
-You will then be prompted to set a username and password.
-
-Once set up, run
-
+2. Update Ubuntu packages:
 ```bash
-sudo apt update && sudo apt upgrade
+sudo apt update && sudo apt upgrade -y
 ```
 
-For this you may need to enable `sudo` in the Windows developer settings. There should be a link to it in the commandline.
+3. Install dependencies:
+```bash
+sudo apt install curl jq unzip rsync git
+```
 
-install depedencies
-
-cd /mnt/c/Users/USERNAME (look for bin on windows)
-
-git clone
-
+4. Clone the script:
+```bash
+cd ~
+git clone https://github.com/dgrondona/among-us-mod-updater
 cd among-us-mod-updater
+```
 
-install among us
-
+5. Make the script executable
+``` bash
 sudo chmod +x update.sh
-
-run script
-
-add modded to steam (maybe different section)
-
-To Be Continued in a bit
+```
 
 ---
 
-for download dir, make it check possible locations for game for steam and epic games, epic games is in
-/mnt/c/Games/ and Among Us is called AmongUs instead of Among Us. Maybe have something that can do either Among Us or AmongUs no matter the case of spaces.
+# Usage
 
-You actually have to install epic games version into actually among us folder, can only play modded or not modded. So files for epic games have to be copied into regular among us. You can then update using the dll files into bepinex/plugin.
+1. Make sure your game is up to date by launching it.
+
+2. Run the script:
+```bash
+sudo ./update.sh
+```
+
+The script comes with various options that you can use:
+```
+-f, --force                 Force update even if mod is up to date
+-n, --no-backup              Skip backing up existing mod
+-b, --force-backup           Force backup of existing mod
+-p, --platform [steam|epic]  Choose platform explicitly
+-v, --verbose                Show detailed logs
+-h, --help                   Show this help message
+```
