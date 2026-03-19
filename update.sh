@@ -189,8 +189,9 @@ assertSafePath() {
     fi
 
     case "$TARGET" in
-        "/"|"/mnt"|"/mnt/c"|"/home"|"$HOME")
-            logError "Refusing to operate on dangerous path: $TARGET"
+        "$HOME"/*|/mnt/c/*) ;;  # allow
+        *)
+            logError "Path outside expected directories: $TARGET"
             exit 1
             ;;
     esac
@@ -282,6 +283,9 @@ safeRemoveModDir() {
 
 # Clean up for Epic's in-place install
 epicClean() {
+
+    assertSafePath "$GAME_DIR"
+
     logInfo "Cleaning old mod files (Epic in-place)..."
 
     rm -rf "$GAME_DIR/BepInEx"
@@ -310,7 +314,7 @@ progressBar() {
 
     # If download is complete, print green and newline
     if [ "$pb_CURRENT" -ge "$pb_TOTAL" ] && [ "$pb_TOTAL" -ne 0 ]; then
-        printf "${GREEN}\r[%-${pb_BAR_LENGTH}s] 100%%${NC}\n" "$(printf '#%.0s' $(awk "BEGIN {for(i=1;i<=$pb_BAR_LENGTH;i++) print \"#\"}")))"
+        printf "${GREEN}\r[%s] 100%%${NC}\n" "$(printf "%${pb_BAR_LENGTH}s" "" | tr ' ' '#'))"
     else
         printf "\r[%-${pb_BAR_LENGTH}s] %3d%%" "$pb_BAR" "$pb_PERCENT"
     fi
@@ -451,7 +455,7 @@ installModFiles() {
     # Move all game files from temp directory to the mod directory
     for ITEM in "$TMP"/*; do
         [ -e "$ITEM" ] || continue
-        rsync -a "$ITEM"/ "$MOD_DIR"/
+        rsync -a "$ITEM" "$MOD_DIR"/
     done
 
 
