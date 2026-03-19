@@ -183,13 +183,22 @@ logDone() {
 run_cmd() {
     # Usage: run_cmd <description> <command...>
     DESC="$1"
-    shift
+    FAIL_MSG="$2"
+    shift 2
+
+    logInfo "$DESC"
 
     if [ "$VERBOSE" -eq 1 ]; then
-        logInfo "$DESC..."
         "$@"
+        c_STATUS=$?
     else
         "$@" >/dev/null 2>&1
+        c_STATUS=$?
+    fi
+
+    if [ $c_STATUS -ne 0 ]; then
+        logError "$FAIL_MSG"
+        exit 1
     fi
 }
 
@@ -451,7 +460,7 @@ doBackup() {
         db_COUNT=$((db_COUNT + 1))
     done
 
-    run_cmd "Backing up existing mod to $db_TARGET..." rsync -a${VERBOSE:+v} "$MOD_DIR"/ "$db_TARGET"/
+    run_cmd "Backing up existing mod to $db_TARGET..." "Failed to backup mod to $db_TARGET." rsync -a${VERBOSE:+v} "$MOD_DIR"/ "$db_TARGET"/
     #logInfo "Backing up existing mod to $db_TARGET..."
     #rsync -a "$MOD_DIR"/ "$db_TARGET"/
 
@@ -478,18 +487,29 @@ installModFiles() {
     TMP=$(mktemp -d "$DOWNLOAD_DIR/tmp_extract.XXXXXX")
 
     # Unzip mod
-    logInfo "Extracting $FILENAME..."
-    if ! unzip -oq "$DOWNLOAD_DIR/$FILENAME" -d "$TMP"; then
-        logError "Failed to unzip mod."
-        exit 1
+    if [ "$VERBOSE" -eq 1 ]; then
+        run_cmd "Extracting $FILENAME" "Failed to unzip mod." unzip -o "$DOWNLOAD_DIR/$FILENAME" -d "$TMP"
+    else
+        run_cmd "Extracting $FILENAME" "Failed to unzip mod." unzip -oq "$DOWNLOAD_DIR/$FILENAME" -d "$TMP"
     fi
 
+    #logInfo "Extracting $FILENAME..."
+    #if ! unzip -oq "$DOWNLOAD_DIR/$FILENAME" -d "$TMP"; then
+    #    logError "Failed to unzip mod."
+    #    exit 1
+    #fi
+
     # Move all game files from temp directory to the mod directory
-    rsync -a "$TMP"/ "$MOD_DIR"/
+    for ITEM in "$TMP"/*; do
+        [ -e "$ITEM" ] || continue
+        run_cmd "Copying $ITEM to $MOD_DIR" "Failed to copy $ITEM to $MOD_DIR" rsync -a${VERBOSE:+v} "$ITEM" "$MOD_DIR"/
+    done
 
     # Remove temp directory and ZIP file
     rm -rf "$TMP"
-    rm -f "$DOWNLOAD_DIR/$FILENAME"
+
+    run_cmd "Removing $DOWNLOAD_DIR/$FILENAME" "Failed to remove $DOWNLOAD_DIR/$FILENAME." rm -f "$DOWNLOAD_DIR/$FILENAME"
+    #rm -f "$DOWNLOAD_DIR/$FILENAME"
 
     logInfo "$FILENAME extracted to $MOD_DIR"
 
