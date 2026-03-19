@@ -263,14 +263,15 @@ cleanup() {
     # Remove temp extraction directory
     if [ -d "$DOWNLOAD_DIR/tmp_extract" ]; then
 
-        rm -rf "$DOWNLOAD_DIR/tmp_extract" 2>/dev/null || true
+        run_cmd "" "Failed to remove $DOWNLOAD_DIR/tmp_extract" rm -rf "$DOWNLOAD_DIR/tmp_extract" || true
 
     fi
 
     # Remove partial download
     if [ -n "${FILENAME:-}" ] && [ -f "$DOWNLOAD_DIR/$FILENAME" ]; then
 
-        rm -f "$DOWNLOAD_DIR/$FILENAME" 2>/dev/null || true
+        run_cmd "" "Failed to remove $DOWNLOAD_DIR/$FILENAME" rm -f "$DOWNLOAD_DIR/$FILENAME" || true
+        #rm -f "$DOWNLOAD_DIR/$FILENAME" 2>/dev/null || true
 
     fi
 
@@ -282,9 +283,15 @@ trap 'cleanup' 0
 # Grab the latest release from GitHub
 getLatestReleaseUrl() {
 
-    curl -s "https://api.github.com/repos/$OWNER/$REPO/releases/latest" |
-        jq -r --arg MATCH "$MATCH" \
-        '.assets[] | select(.name | contains($MATCH)) | .browser_download_url'
+    if [ "$VERBOSE" -eq 1 ]; then
+        curl "https://api.github.com/repos/$OWNER/$REPO/releases/latest" |
+            jq -r --arg MATCH "$MATCH" \
+            '.assets[] | select(.name | contains($MATCH)) | .browser_download_url'
+    else
+        curl -s "https://api.github.com/repos/$OWNER/$REPO/releases/latest" |
+            jq -r --arg MATCH "$MATCH" \
+            '.assets[] | select(.name | contains($MATCH)) | .browser_download_url'
+    fi
 
 }
 
@@ -314,7 +321,7 @@ safeRemoveModDir() {
     assertSafePath "$MOD_DIR"
 
     if [ "$INSTALL_MODE" = "moddir" ]; then
-        rm -rf "$MOD_DIR"
+        run_cmd "" "" rm -rf "$MOD_DIR"
     else
         logWarn "Refusing to delete game directory in in-place mode..."
     fi
@@ -329,9 +336,8 @@ epicClean() {
 
     logInfo "Cleaning old mod files (Epic in-place)..."
 
-    rm -rf "$GAME_DIR/BepInEx"
-    rm -rf "$GAME_DIR/doorstop_libs"
-    rm -f "$GAME_DIR/winhttp.dll"
+    run_cmd "Cleaning old mod files (Epic in-place)..." "" rm -rf "$GAME_DIR/BepInEx" "$GAME_DIR/doorstop_libs" "$GAME_DIR/winhttp.dll"
+
 }
 
 
@@ -396,26 +402,36 @@ download() {
     d_TOTAL=$(get_total_size "$d_URL")
 
     # Start download in background
-    curl -sL "$d_URL" -o "$d_OUTPUT" &
-    d_PID=$!
+    if [ "$VERBOSE" -eq 1 ]; then
+        run_cmd "" "" curl -L "$d_URL" -o "$d_OUTPUT" &
+        d_PID=$!
+    else
+        run_cmd "" "" curl -sL "$d_URL" -o "$d_OUTPUT" &
+        d_PID=$!
+    fi
 
     # Wait for file to exist before polling
     while [ ! -f "$d_OUTPUT" ]; do
         sleep 0.05
     done
 
-    # Poll download progress
-    while kill -0 "$d_PID" 2>/dev/null; do
-        d_DOWNLOADED=$(get_size "$d_OUTPUT")
-        progressBar "$d_DOWNLOADED" "$d_TOTAL"
-        sleep 0.2
-    done
+    if [ "$VERBOSE" -eq 0 ]; then
+
+        # Poll download progress
+        while kill -0 "$d_PID" 2>/dev/null; do
+            d_DOWNLOADED=$(get_size "$d_OUTPUT")
+            progressBar "$d_DOWNLOADED" "$d_TOTAL"
+            sleep 0.2
+        done
+    fi
 
     wait "$d_PID"
     d_STATUS=$?
 
-    # Print full bar at the end
-    progressBar "$d_TOTAL" "$d_TOTAL"
+    if [ "$VERBOSE" -eq 0 ]; then
+        # Print full bar at the end
+        progressBar "$d_TOTAL" "$d_TOTAL"
+    fi
 
     if [ "$d_STATUS" -ne 0 ]; then
         logError "Download failed for $d_OUTPUT"
@@ -468,16 +484,7 @@ doBackup() {
 
 
 copyGameFiles() {
-
-    logInfo "Copying game files to $MOD_DIR..."
-
-    rsync -a "$GAME_DIR"/ "$MOD_DIR"/ || {
-
-        logError "Failed to copy Among Us folder."
-        exit 1
-
-    }
-
+    run_cmd "Copying game files to $MOD_DIR..." "Failed to copy Among Us folder." rsync -a${VERBOSE:+v} "$GAME_DIR"/ "$MOD_DIR"/
 }
 
 
