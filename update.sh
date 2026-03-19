@@ -255,7 +255,7 @@ confirmInPlaceInstall() {
         logWarn "This can break your game if something goes wrong."
 
         printf "Continue? [y/N]: "
-        read CONFIRM || CONFIRM="n"
+        read -r CONFIRM || CONFIRM="n"
 
         CONFIRM=$(printf "%s" "$CONFIRM" | tr '[:upper:]' '[:lower:]')
 
@@ -390,7 +390,7 @@ backup() {
     b_VERSION="$1"
 
     logWarn -n "A previous mod version ($b_VERSION) exists. Save a backup? [Y/n]: "
-    read SAVE_BACKUP || SAVE_BACKUP=""
+    read -r SAVE_BACKUP || SAVE_BACKUP=""
     SAVE_BACKUP=$(printf "%s" "$SAVE_BACKUP" | tr '[:upper:]' '[:lower:]')
 
     if [ "$SAVE_BACKUP" != "n" ] && [ "$SAVE_BACKUP" != "no" ]; then
