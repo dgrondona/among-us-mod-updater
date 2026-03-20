@@ -7,7 +7,6 @@ A simple shell script to update your among us mods without manually moving files
 ---
 
 # Contents
-- [**Contents**](#contents)
 - [**Installation**](#installation)
     - [Linux](#linux)
     - [Mac](#mac)
@@ -199,6 +198,9 @@ Open Steam and navigate to your games library.
 **2. Add new non-steam game**:
 
 In the bottom left corner, click add new game, then Add a Non-Steam Game.
+
+![add a game](images/steam_1.png)
+
 
 **3. Select modded executable**:
 
