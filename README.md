@@ -11,6 +11,9 @@ A simple shell script to update your among us mods without manually moving files
     - [Mac](#mac)
     - [Windows](#windows)
 - [**Usage**](#usage)
+    - [Linux / Mac](#linux--mac)
+    - [Windows](#windows-1)
+    - [Updater Options](#options)
 
 ---
 
@@ -46,6 +49,9 @@ export DOWNLOAD_DIR="/path/to/where/game/folder/is/located"
 ```bash
 chmod +x update.sh
 ```
+
+> **NOTE**:
+> Be sure Proton Experimental is enabled and include any launch options you need. I use `PROTON_LOG=1 PROTON_USE_WINED3D=1 DRI_PRIME=1 %command%`, but this may be different depending on your distrobution and your computer's hardware.
 
 ## Mac
 
@@ -105,6 +111,8 @@ wsl --install ubuntu
 sudo apt update && sudo apt upgrade -y
 ```
 
+You may need to enable the use of `sudo` in Windows settings.
+
 **3. Install dependencies**:
 
 ```bash
@@ -129,12 +137,42 @@ sudo chmod +x update.sh
 
 # Usage
 
-1. Make sure your game is up to date by launching it.
+## Linux / Mac
 
-2. Run the script:
+**1. Update game**:
+
+Make sure that your game is updated by launching it.
+
+**2. Run the updater**:
+
 ```bash
 sudo ./update.sh
 ```
+
+## Windows
+
+**1. Update game**:
+
+Make sure that your game is updated by launching it.
+
+**2. Open WSL**:
+
+Open PowerShell as an administrator and run:
+
+```shell
+wsl
+```
+
+You will most likely need to enter your username and password that you set when you first installed WSL.
+
+**3. Run the updater**:
+
+```bash
+cd ~/among-us-mod-updater
+sudo ./update.sh
+```
+
+## Options
 
 The script comes with various options that you can use:
 ```
@@ -150,5 +188,11 @@ The script comes with various options that you can use:
 
 # Launching Modded Game From Steam
 
-- add game option
-- find modded exe
+**1. Open Steam**:
+
+**2. Add new non-steam game**:
+
+**3. Select modded executable**:
+
+> **NOTE**:
+> For **Linux**, be sure Proton Experimental is enabled and include any launch options you need. I use `PROTON_LOG=1 PROTON_USE_WINED3D=1 DRI_PRIME=1 %command%`, but this may be different depending on your distrobution and your computer's hardware.
