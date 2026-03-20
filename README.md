@@ -190,9 +190,19 @@ The script comes with various options that you can use:
 
 **1. Open Steam**:
 
+Open Steam and navigate to your games library.
+
 **2. Add new non-steam game**:
 
+In the bottom left corner, click add new game, then Add a Non-Steam Game.
+
 **3. Select modded executable**:
+
+In the pop up dialogue, click on `Browse` and navigate to the folder in your `(...)/steam/steamapps/common` folder labeled `toum`. Then select `Among Us.exe`.
+
+**4. Edit game profile**:
+
+I'd recommend editing the name of your modded profile. If you select it in your library, click on the gear icon on the right and select properties. You can then edit the shortcut name, image, etc.
 
 > **NOTE**:
 > For **Linux**, be sure Proton Experimental is enabled and include any launch options you need. I use `PROTON_LOG=1 PROTON_USE_WINED3D=1 DRI_PRIME=1 %command%`, but this may be different depending on your distrobution and your computer's hardware.
