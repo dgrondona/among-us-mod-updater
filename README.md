@@ -145,6 +145,8 @@ Make sure that your game is updated by launching it.
 
 **2. Run the updater**:
 
+Navigate to wherever you installed the updater and run:
+
 ```bash
 sudo ./update.sh
 ```
