@@ -1,6 +1,8 @@
 # Among Us Mod Updater
 
-A simple shell script to update your among us mods without manually moving files. Supports Linux, macOS, and Windows (via WSL). It is assumed that you already have Among Us installed.
+A simple shell script to update your among us mods without manually moving files. Supports **Linux**, **macOS**, and **Windows (via WSL)**.
+
+> It is assumed that you already have **Among Us** installed.
 
 ---
 
