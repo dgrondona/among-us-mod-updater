@@ -98,6 +98,7 @@ wsl --install
 ```
 
 - Restart your computer when done.
+- Open PowerShell as an administrator again.
 - Install Ubuntu (or your preferred Linux distro).
 
 ```shell
