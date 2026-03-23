@@ -200,7 +200,7 @@ Open Steam and navigate to your games library.
 
 In the bottom left corner, click add new game, then Add a Non-Steam Game.
 
-![add a game](images/steam_1.png)
+![add a game](https://github.com/dgrondona/image-storage/blob/847863191842df3cdc3e25c7ddb3a0dbe9af32b4/among-us-mod-updater/steam_1.png)
 
 
 **3. Select modded executable**:
